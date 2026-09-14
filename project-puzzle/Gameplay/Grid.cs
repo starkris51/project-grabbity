@@ -37,10 +37,6 @@ public class Grid
 
     public int AmountToClear { get; private set; } = 3;
 
-    // Applied on top of the fit-to-viewport scale so the board doesn't fill its content
-    // area edge-to-edge — purely a visual sizing knob, tweak to taste.
-    private const float BoardScale = 0.7f;
-
     private int ContentWidth => _viewport.Width - _margins.Left - _margins.Right;
     private int ContentHeight => _viewport.Height - _margins.Top - _margins.Bottom;
 
@@ -78,12 +74,12 @@ public class Grid
         _margins = margins;
 
         int nativeSize = CellTexture.CellSize;
-        float scaleByWidth = (float)ContentWidth / (Width * nativeSize);
-        float scaleByHeight = (float)ContentHeight / (Height * nativeSize);
+        int scaleByWidth = ContentWidth / (Width * nativeSize);
+        int scaleByHeight = ContentHeight / (Height * nativeSize);
 
-        float scale = Math.Min(scaleByWidth, scaleByHeight) * BoardScale;
+        int scale = Math.Max(1, Math.Min(scaleByWidth, scaleByHeight));
 
-        CellSize = Math.Max(1, (int)MathF.Round(nativeSize * scale));
+        CellSize = nativeSize * scale;
     }
 
     public bool IsCellEmpty(int x, int y)
