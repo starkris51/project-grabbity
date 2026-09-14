@@ -8,7 +8,9 @@ namespace Gameplay;
 
 public enum GridPhase
 {
-    Settling,
+    Playing,
+    Gravity,
+    Clearing,
     WaitingAfterClear,
     GameOver
 }
@@ -35,6 +37,10 @@ public class Grid
 
     public int AmountToClear { get; private set; } = 3;
 
+    // Applied on top of the fit-to-viewport scale so the board doesn't fill its content
+    // area edge-to-edge — purely a visual sizing knob, tweak to taste.
+    private const float BoardScale = 0.7f;
+
     private int ContentWidth => _viewport.Width - _margins.Left - _margins.Right;
     private int ContentHeight => _viewport.Height - _margins.Top - _margins.Bottom;
 
@@ -43,20 +49,10 @@ public class Grid
 
     private readonly Texture2D _texture;
 
-    private GridPhase _currentPhase = GridPhase.Settling;
+    private GridPhase _currentPhase = GridPhase.Playing;
     private double _phaseTimer = 0;
     private const double GravityStepDelay = 0.1;
     private const double ClearDelay = 0.4;
-    private const double SpawnDelay = 0.3;
-
-    private bool _spawnPending = false;
-    private double _spawnTimer = 0;
-
-    // true (default): the classic behavior — the next piece only spawns once the board has
-    // fully finished falling and clearing after a placement.
-    // false: the board keeps settling in the background and the next piece spawns a fixed
-    // delay after placement, so pieces can stack up while earlier ones are still falling.
-    public bool WaitForBoardToSettle = true;
 
     public bool IsGameOver => _currentPhase == GridPhase.GameOver;
 
@@ -76,25 +72,18 @@ public class Grid
         Reset();
     }
 
-    // Re-fits this grid into a new viewport/margin pair, recomputing the largest cell
-    // size that still fits the board (plus reserved UI space) inside it. Lets a layout
-    // change (e.g. player count changing) resize an existing grid instead of recreating it.
-    //
-    // CellSize must stay a whole multiple of the texture's native tile size
-    // (CellTexture.CellSize): any other value forces sprites to be stretched by a
-    // fractional factor, which with point sampling shows up as uneven, "mixed up" pixels.
     public void SetViewport(Rectangle viewport, GridMargins margins = default)
     {
         _viewport = viewport;
         _margins = margins;
 
         int nativeSize = CellTexture.CellSize;
-        int scaleByWidth = ContentWidth / (Width * nativeSize);
-        int scaleByHeight = ContentHeight / (Height * nativeSize);
+        float scaleByWidth = (float)ContentWidth / (Width * nativeSize);
+        float scaleByHeight = (float)ContentHeight / (Height * nativeSize);
 
-        int scale = Math.Max(1, Math.Min(scaleByWidth, scaleByHeight));
+        float scale = Math.Min(scaleByWidth, scaleByHeight) * BoardScale;
 
-        CellSize = nativeSize * scale;
+        CellSize = Math.Max(1, (int)MathF.Round(nativeSize * scale));
     }
 
     public bool IsCellEmpty(int x, int y)
@@ -148,10 +137,8 @@ public class Grid
             }
         }
 
-        // The next piece is handed over either once the board settles (see the Settling
-        // case in Update) or after a fixed delay, depending on WaitForBoardToSettle.
-        _spawnPending = true;
-        _spawnTimer = 0;
+        _currentPhase = GridPhase.Gravity;
+        _phaseTimer = 0;
     }
 
     private bool ApplyGravityOneStep()
@@ -318,46 +305,41 @@ public class Grid
 
     public void Update(GameTime gameTime)
     {
-        if (_currentPhase == GridPhase.GameOver) return;
-
-        if (_spawnPending && !WaitForBoardToSettle)
-        {
-            _spawnTimer += gameTime.ElapsedGameTime.TotalSeconds;
-            if (_spawnTimer >= SpawnDelay)
-            {
-                _spawnPending = false;
-                RequestNewPiece?.Invoke();
-            }
-        }
+        if (_currentPhase == GridPhase.Playing) return;
 
         _phaseTimer += gameTime.ElapsedGameTime.TotalSeconds;
 
         switch (_currentPhase)
         {
-            case GridPhase.Settling:
-                if (_phaseTimer < GravityStepDelay) break;
-                _phaseTimer = 0;
-
-                if (ApplyGravityOneStep())
+            case GridPhase.Gravity:
+                if (_phaseTimer >= GravityStepDelay)
                 {
+                    _phaseTimer = 0;
+                    bool moved = ApplyGravityOneStep();
                     SoundManager.Play(Sounds.Fall);
-                    break;
+                    if (!moved)
+                    {
+                        _currentPhase = GridPhase.Clearing;
+                    }
                 }
+                break;
 
-                if (MarkMatches())
+            case GridPhase.Clearing:
+                bool hadMatches = MarkMatches();
+                if (hadMatches)
                 {
                     SoundManager.Play(Sounds.ClearMatch);
                     _currentPhase = GridPhase.WaitingAfterClear;
+                    _phaseTimer = 0;
                 }
                 else if (CheckGameOver())
                 {
                     _currentPhase = GridPhase.GameOver;
                     OnGameOver?.Invoke();
                 }
-                else if (_spawnPending && WaitForBoardToSettle)
+                else
                 {
-                    // The board has come to rest with no matches left to clear.
-                    _spawnPending = false;
+                    _currentPhase = GridPhase.Playing;
                     RequestNewPiece?.Invoke();
                 }
                 break;
@@ -366,7 +348,7 @@ public class Grid
                 if (_phaseTimer >= ClearDelay)
                 {
                     RemoveMarkedCells();
-                    _currentPhase = GridPhase.Settling;
+                    _currentPhase = GridPhase.Gravity;
                     _phaseTimer = 0;
                 }
                 break;
@@ -404,10 +386,8 @@ public class Grid
         cells[0, 0] = new Cell(CellState.Invisible);
         cells[Width - 1, 0] = new Cell(CellState.Invisible);
 
-        _currentPhase = GridPhase.Settling;
+        _currentPhase = GridPhase.Playing;
         _phaseTimer = 0;
-        _spawnPending = false;
-        _spawnTimer = 0;
     }
 
     public void Draw(SpriteBatch spriteBatch)

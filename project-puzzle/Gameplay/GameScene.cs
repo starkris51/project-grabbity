@@ -20,7 +20,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
     // Margins reserved around each board's viewport for that player's UI. A single
     // board gets a bit of breathing room; splitting the screen for multiple boards
     // reserves more (top especially) so each board's UI doesn't collide with its grid.
-    private static readonly GridMargins SingleBoardMargins = new(top: 140, bottom: 40, left: 40, right: 40);
+    private static readonly GridMargins SingleBoardMargins = new(top: 300, bottom: 120, left: 40, right: 40);
     private static readonly GridMargins MultiBoardMargins = new(top: 180, bottom: 60, left: 60, right: 60);
 
     private readonly ContentManager _content = content;
