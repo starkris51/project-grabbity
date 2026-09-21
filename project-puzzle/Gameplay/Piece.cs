@@ -95,20 +95,43 @@ public static class PieceShapes
 
 public class Piece
 {
-    public Piece(Texture2D texture, Grid grid)
+    public Piece(Texture2D texture, Grid grid, bool isInBag = true)
+        : this(texture, grid, PieceShapes.GetNewPiece(), isInBag)
+    {
+    }
+
+    // Builds a piece from an already-rolled shape, so a queued preview piece can be
+    // promoted into the falling piece without re-rolling a different shape.
+    public Piece(Texture2D texture, Grid grid, Cell[,] matrix, bool isInBag)
     {
         _texture = texture;
         _grid = grid;
-        x = (grid.Width / 2) - 1;
-        y = 0;
-        matrix = PieceShapes.GetNewPiece();
+        _isInBag = isInBag;
+        if (isInBag)
+        {
+            x = 0;
+            y = 0;
+        }
+        else
+        {
+            x = (grid.Width / 2) - 1;
+            y = 0;
+        }
+        this.matrix = matrix;
 
-        OnSpawned?.Invoke();
+
+        if (!isInBag)
+        {
+            OnSpawned?.Invoke();
+        }
     }
     private readonly Texture2D _texture;
     private readonly Grid _grid;
+    private readonly bool _isInBag;
 
     private Cell[,] matrix;
+
+    public Cell[,] Matrix => matrix;
 
     private int x;
     private int y;
@@ -212,12 +235,14 @@ public class Piece
         }
     }
 
-    public void Draw(SpriteBatch spriteBatch)
+    public void Draw(SpriteBatch spriteBatch, int offsetX = 0, int offsetY = 0)
     {
         if (IsLocked) return;
 
-        int pixelX = _grid.OffsetX + x * _grid.CellSize;
-        int pixelY = _grid.OffsetY + y * _grid.CellSize;
+        int cellSize = _isInBag ? 16 : _grid.CellSize;
+
+        int pixelX = _grid.OffsetX + x * cellSize + offsetX * cellSize;
+        int pixelY = _grid.OffsetY + y * cellSize + offsetY * cellSize;
 
         // Draw Piece
         for (int i = 0; i < matrix.GetLength(0); i++)
@@ -227,14 +252,18 @@ public class Piece
                 if (matrix[i, j].State != CellState.Empty)
                 {
                     Cell cell = matrix[i, j];
-                    Rectangle sourceRect = cell.SourceRect;
-                    int drawX = pixelX + i * _grid.CellSize;
-                    int drawY = pixelY + j * _grid.CellSize;
-                    Vector2 origin = new(_grid.CellSize / 2, _grid.CellSize / 2);
-                    spriteBatch.Draw(_texture, new Rectangle(drawX + _grid.CellSize / 2, drawY + _grid.CellSize / 2, _grid.CellSize, _grid.CellSize), sourceRect, Color.White, 0f, origin, SpriteEffects.None, 0f);
+                    Rectangle sourceRect = _isInBag ? cell.MiniSourceRect : cell.SourceRect;
+                    Rectangle backgroundRect = _isInBag ? cell.MiniBackground : cell.Background;
+                    int drawX = pixelX + i * cellSize;
+                    int drawY = pixelY + j * cellSize;
+                    Vector2 origin = new(cellSize / 2, cellSize / 2);
+                    spriteBatch.Draw(_texture, new Rectangle(drawX + cellSize / 2, drawY + cellSize / 2, cellSize, cellSize), backgroundRect, Color.White, 0f, origin, SpriteEffects.None, 0f);
+                    spriteBatch.Draw(_texture, new Rectangle(drawX + cellSize / 2, drawY + cellSize / 2, cellSize, cellSize), sourceRect, Color.White, 0f, origin, SpriteEffects.None, 0f);
                 }
             }
         }
+
+        if (_isInBag) return;
 
         // Draw Ghost at the piece's immediate landing spot against the grid as it stands
         // right now. Cells still mid-fall haven't reached their final resting place yet,
@@ -246,8 +275,8 @@ public class Piece
 
         if (ghostY != y)
         {
-            int pixelGhostX = _grid.OffsetX + x * _grid.CellSize;
-            int pixelGhostY = _grid.OffsetY + ghostY * _grid.CellSize;
+            int pixelGhostX = _grid.OffsetX + x * cellSize;
+            int pixelGhostY = _grid.OffsetY + ghostY * cellSize;
 
             for (int i = 0; i < matrix.GetLength(0); i++)
             {
@@ -256,11 +285,11 @@ public class Piece
                     if (matrix[i, j].State == CellState.Empty) continue;
 
                     Cell cell = matrix[i, j];
-                    int drawX = pixelGhostX + i * _grid.CellSize;
-                    int drawY = pixelGhostY + j * _grid.CellSize;
-                    Vector2 origin = new(_grid.CellSize / 2, _grid.CellSize / 2);
-                    spriteBatch.Draw(_texture, new Rectangle(drawX + _grid.CellSize / 2, drawY + _grid.CellSize / 2, _grid.CellSize, _grid.CellSize), cell.SourceRect, Color.White * 0.3f, 0f, origin, SpriteEffects.None, 0f);
-                    spriteBatch.Draw(_texture, new Rectangle(drawX + _grid.CellSize / 2, drawY + _grid.CellSize / 2, _grid.CellSize, _grid.CellSize), CellTexture.Select, Color.White, 0f, origin, SpriteEffects.None, 0f);
+                    int drawX = pixelGhostX + i * cellSize;
+                    int drawY = pixelGhostY + j * cellSize;
+                    Vector2 origin = new(cellSize / 2, cellSize / 2);
+                    spriteBatch.Draw(_texture, new Rectangle(drawX + cellSize / 2, drawY + cellSize / 2, cellSize, cellSize), cell.SourceRect, Color.White * 0.3f, 0f, origin, SpriteEffects.None, 0f);
+                    spriteBatch.Draw(_texture, new Rectangle(drawX + cellSize / 2, drawY + cellSize / 2, cellSize, cellSize), CellTexture.Select, Color.White, 0f, origin, SpriteEffects.None, 0f);
                 }
             }
         }

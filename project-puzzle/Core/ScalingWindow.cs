@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -7,7 +6,6 @@ namespace Core;
 
 public class ScalingWindow
 {
-    [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl)]
     private static extern void SDL_MaximizeWindow(IntPtr window);
 
     public int VirtualWidth { get; }
@@ -36,8 +34,6 @@ public class ScalingWindow
     {
         _renderTarget = new RenderTarget2D(_graphics.GraphicsDevice, VirtualWidth, VirtualHeight);
         UpdateDestinationRect();
-
-        SDL_MaximizeWindow(_window.Handle);
     }
 
     public void ToggleFullscreen()

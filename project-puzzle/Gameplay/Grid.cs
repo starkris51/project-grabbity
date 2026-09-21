@@ -41,7 +41,7 @@ public class Grid
     private int ContentHeight => _viewport.Height - _margins.Top - _margins.Bottom;
 
     public int OffsetX => _viewport.X + _margins.Left + (ContentWidth - Width * CellSize) / 2;
-    public int OffsetY => _viewport.Y + _margins.Top;
+    public int OffsetY => _viewport.Y + _margins.Top + (ContentHeight - Height * CellSize) / 2;
 
     private readonly Texture2D _texture;
 
@@ -72,14 +72,6 @@ public class Grid
     {
         _viewport = viewport;
         _margins = margins;
-
-        int nativeSize = CellTexture.CellSize;
-        int scaleByWidth = ContentWidth / (Width * nativeSize);
-        int scaleByHeight = ContentHeight / (Height * nativeSize);
-
-        int scale = Math.Max(1, Math.Min(scaleByWidth, scaleByHeight));
-
-        CellSize = nativeSize * scale;
     }
 
     public bool IsCellEmpty(int x, int y)
@@ -379,9 +371,6 @@ public class Grid
         cells[Width - 1, Height - 2] = new Cell(CellState.Invisible);
         cells[Width - 2, Height - 1] = new Cell(CellState.Invisible);
 
-        cells[0, 0] = new Cell(CellState.Invisible);
-        cells[Width - 1, 0] = new Cell(CellState.Invisible);
-
         _currentPhase = GridPhase.Playing;
         _phaseTimer = 0;
     }
@@ -406,11 +395,14 @@ public class Grid
         {
             for (int y = 0; y < Height; y++)
             {
-                if (cells[x, y].State == CellState.Empty) continue;
+                if (cells[x, y].State == CellState.Empty || cells[x, y].State == CellState.Invisible) continue;
 
                 Cell cell = cells[x, y];
                 Vector2 origin = new(CellSize / 2, CellSize / 2);
                 Color tint = cell.IsClearing ? Color.Blue * 1.2f : Color.White;
+                // Cell background
+                spriteBatch.Draw(_texture, new Rectangle(OffsetX + x * CellSize + CellSize / 2, OffsetY + y * CellSize + CellSize / 2, CellSize, CellSize), cell.Background, tint, 0f, origin, SpriteEffects.None, 0f);
+                // Cell block
                 spriteBatch.Draw(_texture, new Rectangle(OffsetX + x * CellSize + CellSize / 2, OffsetY + y * CellSize + CellSize / 2, CellSize, CellSize), cell.SourceRect, tint, 0f, origin, SpriteEffects.None, 0f);
             }
         }

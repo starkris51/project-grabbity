@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Core;
 using Microsoft.Xna.Framework;
@@ -10,32 +9,30 @@ namespace Gameplay;
 public class PlayerBoard
 {
     public required Grid Grid;
-    public readonly List<Piece> Pieces = [];
+    public required PieceManager PieceManager;
     public int Score { get; set; } = 0;
 }
 
 public class GameScene(ContentManager content, int screenWidth, int screenHeight) : IScene
 {
 
-    // Margins reserved around each board's viewport for that player's UI. A single
-    // board gets a bit of breathing room; splitting the screen for multiple boards
-    // reserves more (top especially) so each board's UI doesn't collide with its grid.
-    private static readonly GridMargins SingleBoardMargins = new(top: 300, bottom: 0, left: 40, right: 40);
-    private static readonly GridMargins MultiBoardMargins = new(top: 180, bottom: 60, left: 60, right: 60);
+    // Top == bottom so the vertical centering in Grid.OffsetY places the board dead
+    // center on screen regardless of the margin value.
+    private static readonly GridMargins SingleBoardMargins = new(top: 40, bottom: 40, left: 40, right: 40);
+    private static readonly GridMargins MultiBoardMargins = new(top: 450, bottom: 60, left: 60, right: 60);
+
+    private const int UpcomingPieceCount = 3;
 
     private readonly ContentManager _content = content;
     private Texture2D tileset = null!;
 
     private readonly List<PlayerBoard> boards = [];
 
-    // Number of boards to lay out on screen. This only controls layout (1 = single
-    // board centered, 2 = boards placed left/right for a 1v1 layout) — it does not
-    // wire up separate input or any actual multiplayer logic.
     public int BoardCount { get; private set; } = 1;
 
     public void Load()
     {
-        tileset = _content.Load<Texture2D>("TilesetV5");
+        tileset = _content.Load<Texture2D>("wip-tileset");
 
         CreateBoards();
     }
@@ -51,7 +48,11 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
         foreach (Rectangle viewport in viewports)
         {
-            var board = new PlayerBoard { Grid = new Grid(tileset, viewport, margins) };
+            var grid = new Grid(tileset, viewport, margins);
+            var pieceManager = new PieceManager(UpcomingPieceCount);
+            pieceManager.Initialize(grid, tileset);
+
+            var board = new PlayerBoard { Grid = grid, PieceManager = pieceManager };
             boards.Add(board);
 
             board.Grid.OnGameOver += () => Restart(board);
@@ -69,13 +70,13 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
     private void SpawnPiece(PlayerBoard board)
     {
-        board.Pieces.Add(new Piece(tileset, board.Grid));
+        board.PieceManager.SpawnNext();
     }
 
     private void Restart(PlayerBoard board)
     {
         board.Grid.Reset();
-        board.Pieces.Clear();
+        board.PieceManager.Initialize(board.Grid, tileset);
         SpawnPiece(board);
     }
 
@@ -102,15 +103,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
             if (board.Grid.IsGameOver) continue;
 
-            // Walk backwards over the pieces that existed at the start of the frame: locking a
-            // piece spawns its replacement at the end of the list, which must not be updated
-            // again this frame.
-            for (int i = board.Pieces.Count - 1; i >= 0; i--)
-            {
-                Piece p = board.Pieces[i];
-                p.Update(gameTime);
-                if (p.IsLocked) board.Pieces.RemoveAt(i);
-            }
+            board.PieceManager.Update(gameTime);
         }
     }
 
@@ -119,9 +112,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
         foreach (PlayerBoard board in boards)
         {
             board.Grid.Draw(spriteBatch);
-
-            foreach (Piece p in board.Pieces)
-                p.Draw(spriteBatch);
+            board.PieceManager.Draw(spriteBatch);
         }
     }
 }

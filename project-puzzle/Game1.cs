@@ -64,11 +64,11 @@ public class Game1 : Game
     {
         _scalingWindow.BeginDraw();
 
-        _graphics.GraphicsDevice.Clear(Color.Black);
+        _graphics.GraphicsDevice.Clear(Color.Black); // Black background
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
 
-        _sceneManager.Draw(gameTime, _spriteBatch);
+        _sceneManager.Draw(gameTime, _spriteBatch); // Draw the current scene
 
         _spriteBatch.End();
 

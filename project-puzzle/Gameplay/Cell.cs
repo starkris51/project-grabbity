@@ -9,16 +9,40 @@ public static class CellTexture
 {
     public const int CellSize = 32;
 
-    public static readonly Rectangle Empty = new(0, 64, 32, 32);
-    public static readonly Rectangle Invisible = new(0, 96, 32, 32);
-    public static readonly Rectangle Blocker = new(32, 0, 32, 32);
-    public static readonly Rectangle Symbol1 = new(64, 0, 32, 32);
-    public static readonly Rectangle Symbol2 = new(96, 0, 32, 32);
-    public static readonly Rectangle Symbol3 = new(128, 0, 32, 32);
+    private static Rectangle FromCoords(int x, int y)
+    {
+        return new Rectangle(x * CellSize, y * CellSize, CellSize, CellSize);
+    }
 
-    public static readonly Rectangle DecorationLine = new(192, 64, 32, 32);
-    public static readonly Rectangle DecorationCorner = new(192, 32, 32, 32);
-    public static readonly Rectangle Select = new(160, 32, 32, 32);
+    private static Rectangle FromCoordsSmall(int x, int y)
+    {
+        return new Rectangle(x * 16, y * 16, 16, 16);
+    }
+
+    public static readonly Rectangle Empty = FromCoords(0, 0);
+    public static readonly Rectangle Invisible = FromCoords(8, 8);
+    public static readonly Rectangle Blocker = FromCoords(0, 0);
+    public static readonly Rectangle BackgroundBlock1 = FromCoords(1, 0);
+    public static readonly Rectangle BackgroundBlock2 = FromCoords(2, 0);
+    public static readonly Rectangle BackgroundBlock3 = FromCoords(3, 0);
+    public static readonly Rectangle BackgroundBlock4 = FromCoords(4, 0);
+    public static readonly Rectangle BackgroundBlock5 = FromCoords(5, 0);
+    public static readonly Rectangle BackgroundBlock6 = FromCoords(6, 0);
+    public static readonly Rectangle BackgroundBlock7 = FromCoords(7, 0);
+    public static readonly Rectangle Symbol1 = FromCoords(3, 1);
+    public static readonly Rectangle Symbol2 = FromCoords(1, 1);
+    public static readonly Rectangle Symbol3 = FromCoords(2, 1);
+    public static readonly Rectangle Select = FromCoords(6, 2);
+
+    public static readonly Rectangle WallLeft = FromCoords(0, 2);
+    public static readonly Rectangle WallRight = FromCoords(1, 2);
+    public static readonly Rectangle WallTop = FromCoords(2, 2);
+    public static readonly Rectangle WallBottom = FromCoords(3, 2);
+
+    public static readonly Rectangle MiniBackgroundBlock1 = FromCoordsSmall(14, 2);
+    public static readonly Rectangle MiniSymbol1 = FromCoordsSmall(12, 2);
+    public static readonly Rectangle MiniSymbol2 = FromCoordsSmall(13, 2);
+    public static readonly Rectangle MiniSymbol3 = FromCoordsSmall(12, 3);
 
 }
 
@@ -82,6 +106,39 @@ public class Cell
         };
     }
 
+    private Rectangle UpdateBackgroundRect()
+    {
+        return State switch
+        {
+            CellState.Symbol1 => CellTexture.BackgroundBlock3,
+            CellState.Symbol2 => CellTexture.BackgroundBlock7,
+            CellState.Symbol3 => CellTexture.BackgroundBlock6,
+            _ => CellTexture.Empty
+        };
+    }
+
+    // Small-scale variants used when drawing the upcoming-pieces queue, sourced from
+    // the tileset's dedicated 16x16 art rather than downscaling the 32x32 sprites.
+    private Rectangle UpdateMiniSourceRect()
+    {
+        return State switch
+        {
+            CellState.Symbol1 => CellTexture.MiniSymbol1,
+            CellState.Symbol2 => CellTexture.MiniSymbol2,
+            CellState.Symbol3 => CellTexture.MiniSymbol3,
+            _ => CellTexture.Empty
+        };
+    }
+
+    private Rectangle UpdateMiniBackgroundRect()
+    {
+        return State switch
+        {
+            CellState.Symbol1 or CellState.Symbol2 or CellState.Symbol3 => CellTexture.MiniBackgroundBlock1,
+            _ => CellTexture.Empty
+        };
+    }
+
     private CellState _state;
     public CellState State
     {
@@ -90,13 +147,22 @@ public class Cell
         {
             _state = value;
             SourceRect = UpdateSourceRect();
+            Background = UpdateBackgroundRect();
+            MiniSourceRect = UpdateMiniSourceRect();
+            MiniBackground = UpdateMiniBackgroundRect();
         }
     }
 
     public int X { get; set; }
     public int Y { get; set; }
 
+    public Rectangle Background;
+
     public Rectangle SourceRect;
+
+    public Rectangle MiniBackground;
+
+    public Rectangle MiniSourceRect;
 
     public void Clear()
     {
