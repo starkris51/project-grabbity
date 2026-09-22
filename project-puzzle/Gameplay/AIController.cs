@@ -21,8 +21,18 @@ public class AIController(PlayerBoard board) : BoardController(board)
 
     public List<PlacementOption> GetAllPlacements(Cell[,] currentPiece, Cell[,] board)
     {
-        return [];
+        List<PlacementOption> options = [];
+        Grid grid = Board.Grid;
+
+        Cell[,] shape = currentPiece;
+        for (int rotation = 0; rotation < 4; rotation++)
+        {
+
+        }
+
+        return options;
     }
+
 
     protected override void OnNoActivePiece() { }
 

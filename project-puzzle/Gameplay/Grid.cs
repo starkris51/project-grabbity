@@ -129,18 +129,18 @@ public class Grid
         _phaseTimer = 0;
     }
 
-    private bool ApplyGravityOneStep()
+    private bool ApplyGravityOneStep(Cell[,] board)
     {
         bool moved = false;
         for (int x = 0; x < Width; x++)
         {
             for (int y = Height - 2; y >= 0; y--)
             {
-                if (cells[x, y].State == CellState.Empty || cells[x, y].State == CellState.Invisible || cells[x, y].IsClearing) continue;
-                if (cells[x, y + 1].State == CellState.Empty)
+                if (board[x, y].State == CellState.Empty || board[x, y].State == CellState.Invisible || board[x, y].IsClearing) continue;
+                if (board[x, y + 1].State == CellState.Empty)
                 {
-                    cells[x, y + 1] = cells[x, y];
-                    cells[x, y] = new Cell();
+                    board[x, y + 1] = board[x, y];
+                    board[x, y] = new Cell();
                     moved = true;
                 }
             }
@@ -148,7 +148,7 @@ public class Grid
         return moved;
     }
 
-    private bool MarkMatches()
+    private bool MarkMatches(Cell[,] board)
     {
         bool found = false;
 
@@ -158,7 +158,7 @@ public class Grid
             int runStart = 0;
             while (runStart < Width)
             {
-                CellState state = cells[runStart, y].State;
+                CellState state = board[runStart, y].State;
                 if (state == CellState.Empty || state == CellState.Placeholder || state == CellState.Invisible)
                 {
                     runStart++;
@@ -166,14 +166,14 @@ public class Grid
                 }
 
                 int runEnd = runStart + 1;
-                while (runEnd < Width && cells[runEnd, y].State == state)
+                while (runEnd < Width && board[runEnd, y].State == state)
                     runEnd++;
 
                 if (runEnd - runStart >= AmountToClear)
                 {
                     found = true;
                     for (int x = runStart; x < runEnd; x++)
-                        cells[x, y].IsClearing = true;
+                        board[x, y].IsClearing = true;
                 }
 
                 runStart = runEnd;
@@ -186,7 +186,7 @@ public class Grid
             int runStart = 0;
             while (runStart < Height)
             {
-                CellState state = cells[x, runStart].State;
+                CellState state = board[x, runStart].State;
                 if (state == CellState.Empty || state == CellState.Placeholder || state == CellState.Invisible)
                 {
                     runStart++;
@@ -194,101 +194,134 @@ public class Grid
                 }
 
                 int runEnd = runStart + 1;
-                while (runEnd < Height && cells[x, runEnd].State == state)
+                while (runEnd < Height && board[x, runEnd].State == state)
                     runEnd++;
 
                 if (runEnd - runStart >= AmountToClear)
                 {
                     found = true;
                     for (int y = runStart; y < runEnd; y++)
-                        cells[x, y].IsClearing = true;
+                        board[x, y].IsClearing = true;
                 }
 
                 runStart = runEnd;
             }
         }
-
-        // Diagonal runs (top-left to bottom-right)
-        // for (int startX = 0; startX < Width; startX++)
-        // {
-        //     for (int startY = 0; startY < Height; startY++)
-        //     {
-        //         CellState state = cells[startX, startY].State;
-        //         if (state == CellState.Empty || state == CellState.Placeholder || state == CellState.Invisible)
-        //             continue;
-
-        //         int count = 1;
-        //         while (startX + count < Width && startY + count < Height && cells[startX + count, startY + count].State == state)
-        //             count++;
-
-        //         if (count >= AmountToClear)
-        //         {
-        //             found = true;
-        //             for (int i = 0; i < count; i++)
-        //                 cells[startX + i, startY + i].IsClearing = true;
-        //         }
-        //     }
-        // }
-
-        // // Diagonal runs (top-right to bottom-left)
-        // for (int startX = 0; startX < Width; startX++)
-        // {
-        //     for (int startY = 0; startY < Height; startY++)
-        //     {
-        //         CellState state = cells[startX, startY].State;
-        //         if (state == CellState.Empty || state == CellState.Placeholder || state == CellState.Invisible)
-        //             continue;
-
-        //         int count = 1;
-        //         while (startX - count >= 0 && startY + count < Height && cells[startX - count, startY + count].State == state)
-        //             count++;
-
-        //         if (count >= AmountToClear)
-        //         {
-        //             found = true;
-        //             for (int i = 0; i < count; i++)
-        //                 cells[startX - i, startY + i].IsClearing = true;
-        //         }
-        //     }
-        // }
-
-        // Square runs
-        // for (int x = 0; x < Width - 1; x++)
-        // {
-        //     for (int y = 0; y < Height - 1; y++)
-        //     {
-        //         CellState state = cells[x, y].State;
-        //         if (state == CellState.Empty || state == CellState.Placeholder || state == CellState.Invisible)
-        //             continue;
-
-        //         if (cells[x + 1, y].State == state &&
-        //             cells[x, y + 1].State == state &&
-        //             cells[x + 1, y + 1].State == state)
-        //         {
-        //             found = true;
-        //             cells[x, y].IsClearing = true;
-        //             cells[x + 1, y].IsClearing = true;
-        //             cells[x, y + 1].IsClearing = true;
-        //             cells[x + 1, y + 1].IsClearing = true;
-        //         }
-        //     }
-        // }
-
         return found;
     }
 
-    private void RemoveMarkedCells()
+    public Cell[,] Clone() => CloneBoard(cells);
+
+    public Cell[,] CloneBoard(Cell[,] board)
     {
+        Cell[,] clone = new Cell[Width, Height];
         for (int x = 0; x < Width; x++)
         {
             for (int y = 0; y < Height; y++)
             {
-                if (cells[x, y].IsClearing)
+                clone[x, y] = new Cell(board[x, y].State);
+            }
+        }
+        return clone;
+    }
+
+    // Bounds/occupancy check for dropping a piece onto an arbitrary board snapshot,
+    // independent of this grid's live state. Used by AI placement simulation.
+    public bool CanPlaceOnBoard(Cell[,] board, Cell[,] matrix, int x, int y)
+    {
+        for (int i = 0; i < matrix.GetLength(0); i++)
+        {
+            for (int j = 0; j < matrix.GetLength(1); j++)
+            {
+                if (matrix[i, j].State == CellState.Empty) continue;
+
+                int bx = x + i;
+                int by = y + j;
+                if (bx < 0 || bx >= Width || by < 0 || by >= Height) return false;
+                if (board[bx, by].State != CellState.Empty) return false;
+            }
+        }
+        return true;
+    }
+
+    // Returns the resting Y for a hard drop of matrix at column x on the given board,
+    // or -1 if the piece can't even fit at its spawn row there.
+    public int GetDropY(Cell[,] board, Cell[,] matrix, int x, int startY = 0)
+    {
+        if (!CanPlaceOnBoard(board, matrix, x, startY)) return -1;
+
+        int y = startY;
+        while (CanPlaceOnBoard(board, matrix, x, y + 1))
+            y++;
+        return y;
+    }
+
+    public Cell[,] PlacePieceOnBoard(Cell[,] board, Cell[,] matrix, int x, int y)
+    {
+        Cell[,] result = CloneBoard(board);
+        for (int i = 0; i < matrix.GetLength(0); i++)
+        {
+            for (int j = 0; j < matrix.GetLength(1); j++)
+            {
+                if (matrix[i, j].State != CellState.Empty)
                 {
-                    cells[x, y] = new Cell();
+                    result[x + i, y + j] = new Cell(matrix[i, j].State);
                 }
             }
         }
+        return result;
+    }
+
+    public readonly struct SimulationResult(Cell[,] resultBoard, int cellsCleared, int chainDepth)
+    {
+        public Cell[,] ResultBoard { get; } = resultBoard;
+        public int CellsCleared { get; } = cellsCleared;
+        public int ChainDepth { get; } = chainDepth;
+    }
+
+    // Resolves gravity, then repeatedly marks/clears/re-settles until the board is
+    // stable, mirroring the real Gravity -> Clearing -> WaitingAfterClear loop but
+    // instantly and on a throwaway copy, so it's safe to call from AI lookahead.
+    public SimulationResult SimulateClearsAndGravity(Cell[,] board)
+    {
+        Cell[,] sim = CloneBoard(board);
+
+        while (ApplyGravityOneStep(sim)) { }
+
+        int cellsCleared = 0;
+        int chainDepth = 0;
+
+        while (MarkMatches(sim))
+        {
+            chainDepth++;
+            cellsCleared += RemoveMarkedCells(sim);
+            while (ApplyGravityOneStep(sim)) { }
+        }
+
+        return new SimulationResult(sim, cellsCleared, chainDepth);
+    }
+
+    public SimulationResult SimulatePlacement(Cell[,] board, Cell[,] matrix, int x, int y)
+    {
+        Cell[,] placed = PlacePieceOnBoard(board, matrix, x, y);
+        return SimulateClearsAndGravity(placed);
+    }
+
+    private int RemoveMarkedCells(Cell[,] board)
+    {
+        int cleared = 0;
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                if (board[x, y].IsClearing)
+                {
+                    board[x, y] = new Cell();
+                    cleared++;
+                }
+            }
+        }
+        return cleared;
     }
 
     public void Update(GameTime gameTime)
@@ -303,7 +336,7 @@ public class Grid
                 if (_phaseTimer >= GravityStepDelay)
                 {
                     _phaseTimer = 0;
-                    bool moved = ApplyGravityOneStep();
+                    bool moved = ApplyGravityOneStep(cells);
                     SoundManager.Play(Sounds.Fall);
                     if (!moved)
                     {
@@ -313,7 +346,7 @@ public class Grid
                 break;
 
             case GridPhase.Clearing:
-                bool hadMatches = MarkMatches();
+                bool hadMatches = MarkMatches(cells);
                 if (hadMatches)
                 {
                     SoundManager.Play(Sounds.ClearMatch);
@@ -335,7 +368,7 @@ public class Grid
             case GridPhase.WaitingAfterClear:
                 if (_phaseTimer >= ClearDelay)
                 {
-                    RemoveMarkedCells();
+                    RemoveMarkedCells(cells);
                     _currentPhase = GridPhase.Gravity;
                     _phaseTimer = 0;
                 }
