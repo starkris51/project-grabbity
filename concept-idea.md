@@ -1,3 +1,20 @@
+Todo:
+
+[] Hold piece
+[X] Rework Player controls
+[] AI system
+[] Combat system
+[] Score system
+[] WIP Decorations
+[] Clear effects
+[] User interface
+[] Add single player endless mode and 1vsAI gamemode and 1v1 multiplayer
+[] Add wip story mode (4 stages of 1vsAI)
+[] Experiment with enemy combat attacks
+[] Finish the gameplay
+[] Graphics overhaul
+
+
 combat system draft:
 
 Draft: "Pressure" system, built around your typed clears

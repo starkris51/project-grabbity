@@ -377,6 +377,9 @@ public class Grid
 
     public void Draw(SpriteBatch spriteBatch)
     {
+        // Draw player icon background
+        spriteBatch.Draw(_texture, new Rectangle(OffsetX - 64, OffsetY + 48, 96, 96), new Rectangle(128, 64, 64, 64), Color.White, 0f, new Vector2(32, 32), SpriteEffects.None, 0f);
+
         // Draw grid background
         for (int x = 0; x < Width; x++)
         {

@@ -17,6 +17,8 @@ public class PieceManager(int maxPieces)
     private readonly List<Piece> _pieces = [];
     private Piece _activePiece = null!;
 
+    public Piece ActivePiece => _activePiece;
+
     private Grid _grid;
     private Texture2D _texture;
 

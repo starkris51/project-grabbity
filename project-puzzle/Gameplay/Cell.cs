@@ -34,11 +34,6 @@ public static class CellTexture
     public static readonly Rectangle Symbol3 = FromCoords(2, 1);
     public static readonly Rectangle Select = FromCoords(6, 2);
 
-    public static readonly Rectangle WallLeft = FromCoords(0, 2);
-    public static readonly Rectangle WallRight = FromCoords(1, 2);
-    public static readonly Rectangle WallTop = FromCoords(2, 2);
-    public static readonly Rectangle WallBottom = FromCoords(3, 2);
-
     public static readonly Rectangle MiniBackgroundBlock1 = FromCoordsSmall(14, 2);
     public static readonly Rectangle MiniSymbol1 = FromCoordsSmall(12, 2);
     public static readonly Rectangle MiniSymbol2 = FromCoordsSmall(13, 2);

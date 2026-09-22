@@ -3,7 +3,6 @@ using System;
 using Core;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace Gameplay;
 
@@ -206,6 +205,23 @@ public class Piece
         // SoundManager.Play(Sounds.PlacePiece); --- IGNORE ---
     }
 
+    public bool MoveLeft() => TryMove(-1, 0);
+    public bool MoveRight() => TryMove(1, 0);
+
+    public bool SoftDrop()
+    {
+        if (TryMove(0, 1))
+        {
+            fallTimer = 0;
+            return true;
+        }
+        Lock();
+        return false;
+    }
+
+    public void HardDrop() => Lock();
+    public bool Rotate() => TryRotate();
+
     public void Update(GameTime gameTime)
     {
         if (IsLocked || _grid.IsGameOver) return;
@@ -215,23 +231,6 @@ public class Piece
         {
             if (!TryMove(0, 1)) Lock();
             fallTimer = 0;
-            if (IsLocked) return;
-        }
-
-        if (KeyboardInfo.WasKeyJustPressed(Keys.Left)) TryMove(-1, 0);
-        if (KeyboardInfo.WasKeyJustPressed(Keys.Right)) TryMove(1, 0);
-        if (KeyboardInfo.WasKeyJustPressed(Keys.Down))
-        {
-            if (!TryMove(0, 1)) Lock();
-        }
-        if (KeyboardInfo.WasKeyJustPressed(Keys.Space))
-        {
-            Lock();
-        }
-        if (IsLocked) return;
-        if (KeyboardInfo.WasKeyJustPressed(Keys.R) || KeyboardInfo.WasKeyJustPressed(Keys.Up))
-        {
-            TryRotate();
         }
     }
 

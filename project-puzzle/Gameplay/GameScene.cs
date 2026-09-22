@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Core;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
@@ -10,16 +11,16 @@ public class PlayerBoard
 {
     public required Grid Grid;
     public required PieceManager PieceManager;
+    public BoardController Controller = null!;
     public int Score { get; set; } = 0;
 }
 
 public class GameScene(ContentManager content, int screenWidth, int screenHeight) : IScene
 {
-
-    // Top == bottom so the vertical centering in Grid.OffsetY places the board dead
-    // center on screen regardless of the margin value.
     private static readonly GridMargins SingleBoardMargins = new(top: 40, bottom: 40, left: 40, right: 40);
-    private static readonly GridMargins MultiBoardMargins = new(top: 450, bottom: 60, left: 60, right: 60);
+
+    // 450 in the future
+    private static readonly GridMargins MultiBoardMargins = new(top: 40, bottom: 60, left: 60, right: 60);
 
     private const int UpcomingPieceCount = 3;
 
@@ -28,7 +29,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
     private readonly List<PlayerBoard> boards = [];
 
-    public int BoardCount { get; private set; } = 1;
+    public int BoardCount { get; private set; } = 2;
 
     public void Load()
     {
@@ -46,13 +47,23 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
         GridMargins margins = BoardCount > 1 ? MultiBoardMargins : SingleBoardMargins;
         Rectangle[] viewports = BoardLayout.GetViewports(BoardCount, screenWidth, screenHeight);
 
-        foreach (Rectangle viewport in viewports)
+        foreach (var item in viewports.Select((viewport, index) => (viewport, index)))
         {
-            var grid = new Grid(tileset, viewport, margins);
+            var grid = new Grid(tileset, item.viewport, margins);
             var pieceManager = new PieceManager(UpcomingPieceCount);
             pieceManager.Initialize(grid, tileset);
 
             var board = new PlayerBoard { Grid = grid, PieceManager = pieceManager };
+            // Use AI Controller if board is second
+            if (item.index == 1)
+            {
+                board.Controller = new AIController(board);
+            }
+            else
+            {
+                board.Controller = new PlayerController(board);
+            }
+
             boards.Add(board);
 
             board.Grid.OnGameOver += () => Restart(board);
@@ -104,6 +115,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
             if (board.Grid.IsGameOver) continue;
 
             board.PieceManager.Update(gameTime);
+            board.Controller.Update(gameTime);
         }
     }
 
