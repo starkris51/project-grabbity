@@ -38,8 +38,6 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
         CreateBoards();
     }
 
-    // Rebuilds the boards for the current BoardCount. Call SetBoardCount first to change
-    // the layout (e.g. switching from single-player to a 1v1 layout).
     private void CreateBoards()
     {
         boards.Clear();

@@ -14,6 +14,10 @@ public class ScalingWindow
     private readonly GraphicsDeviceManager _graphics;
     private readonly GameWindow _window;
     private RenderTarget2D _renderTarget;
+    // Intermediate target at an integer multiple of the virtual resolution, used for non-integer window scales.
+    private RenderTarget2D _upscaleTarget;
+    private int _upscaleFactor;
+    private bool _isIntegerScale;
     private Rectangle _destinationRect;
 
     public ScalingWindow(GraphicsDeviceManager graphics, GameWindow window, int virtualWidth, int virtualHeight)
@@ -26,8 +30,7 @@ public class ScalingWindow
         _window.AllowUserResizing = true;
         _window.ClientSizeChanged += OnClientSizeChanged;
 
-        _graphics.PreferredBackBufferWidth = virtualWidth;
-        _graphics.PreferredBackBufferHeight = virtualHeight;
+        SetWindowedSize();
     }
 
     public void Initialize()
@@ -41,8 +44,7 @@ public class ScalingWindow
         if (_graphics.IsFullScreen)
         {
             _graphics.IsFullScreen = false;
-            _graphics.PreferredBackBufferWidth = VirtualWidth;
-            _graphics.PreferredBackBufferHeight = VirtualHeight;
+            SetWindowedSize();
         }
         else
         {
@@ -63,11 +65,30 @@ public class ScalingWindow
 
     public void EndDraw(SpriteBatch spriteBatch)
     {
-        _graphics.GraphicsDevice.SetRenderTarget(null);
-        _graphics.GraphicsDevice.Clear(Color.Black);
+        GraphicsDevice device = _graphics.GraphicsDevice;
 
+        if (_isIntegerScale || _upscaleTarget == null)
+        {
+            device.SetRenderTarget(null);
+            device.Clear(Color.Black);
+
+            spriteBatch.Begin(samplerState: _isIntegerScale ? SamplerState.PointClamp : SamplerState.LinearClamp);
+            spriteBatch.Draw(_renderTarget, _destinationRect, Color.White);
+            spriteBatch.End();
+            return;
+        }
+
+        // Non-integer scale: nearest-neighbour upscale by a whole factor first (every pixel stays square),
+        // then a linear downscale to the final size so only pixel edges get slightly softened.
+        device.SetRenderTarget(_upscaleTarget);
         spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-        spriteBatch.Draw(_renderTarget, _destinationRect, Color.White);
+        spriteBatch.Draw(_renderTarget, _upscaleTarget.Bounds, Color.White);
+        spriteBatch.End();
+
+        device.SetRenderTarget(null);
+        device.Clear(Color.Black);
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
+        spriteBatch.Draw(_upscaleTarget, _destinationRect, Color.White);
         spriteBatch.End();
     }
 
@@ -95,6 +116,21 @@ public class ScalingWindow
         UpdateDestinationRect();
     }
 
+    // Largest integer multiple of the virtual resolution that fits on the display,
+    // leaving headroom for the title bar and taskbar.
+    private void SetWindowedSize()
+    {
+        const int DesktopHeadroom = 100;
+
+        DisplayMode displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+        int scale = Math.Max(1, Math.Min(
+            displayMode.Width / VirtualWidth,
+            (displayMode.Height - DesktopHeadroom) / VirtualHeight));
+
+        _graphics.PreferredBackBufferWidth = VirtualWidth * scale;
+        _graphics.PreferredBackBufferHeight = VirtualHeight * scale;
+    }
+
     private void UpdateDestinationRect()
     {
         int windowWidth = _graphics.GraphicsDevice.PresentationParameters.BackBufferWidth;
@@ -104,6 +140,9 @@ public class ScalingWindow
             (float)windowWidth / VirtualWidth,
             (float)windowHeight / VirtualHeight);
 
+        _isIntegerScale = MathF.Abs(scale - MathF.Round(scale)) < 0.001f && scale >= 1f;
+        if (_isIntegerScale) scale = MathF.Round(scale);
+
         int scaledWidth = (int)(VirtualWidth * scale);
         int scaledHeight = (int)(VirtualHeight * scale);
 
@@ -112,5 +151,19 @@ public class ScalingWindow
             (windowHeight - scaledHeight) / 2,
             scaledWidth,
             scaledHeight);
+
+        UpdateUpscaleTarget(scale);
+    }
+
+    private void UpdateUpscaleTarget(float scale)
+    {
+        int factor = _isIntegerScale || scale < 1f ? 0 : (int)MathF.Ceiling(scale);
+        if (factor == _upscaleFactor) return;
+
+        _upscaleTarget?.Dispose();
+        _upscaleTarget = factor > 0
+            ? new RenderTarget2D(_graphics.GraphicsDevice, VirtualWidth * factor, VirtualHeight * factor)
+            : null;
+        _upscaleFactor = factor;
     }
 }

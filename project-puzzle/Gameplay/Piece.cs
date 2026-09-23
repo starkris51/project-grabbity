@@ -135,6 +135,11 @@ public class Piece
     private int x;
     private int y;
 
+    public int Column => x;
+
+    // Number of successful clockwise rotations since spawn, mod 4.
+    public int Rotation { get; private set; }
+
     private double fallTimer = 0;
     private readonly double fallInterval = 0.5; // seconds between drops
 
@@ -162,7 +167,9 @@ public class Piece
         return true;
     }
 
-    private bool TryRotate()
+    // Clockwise 90° rotation of a piece matrix. Static so the AI can simulate the exact
+    // same rotation on a copy without touching the live piece.
+    public static Cell[,] RotateMatrix(Cell[,] matrix)
     {
         int rows = matrix.GetLength(0);
         int cols = matrix.GetLength(1);
@@ -182,9 +189,17 @@ public class Piece
                 }
             }
 
+        return rotated;
+    }
+
+    private bool TryRotate()
+    {
+        var rotated = RotateMatrix(matrix);
+
         if (!_grid.IsValidPosition(x, y, rotated)) return false;
 
         matrix = rotated;
+        Rotation = (Rotation + 1) % 4;
         OnRotated?.Invoke();
         SoundManager.Play(Sounds.Rotate);
         return true;

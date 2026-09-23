@@ -225,8 +225,6 @@ public class Grid
         return clone;
     }
 
-    // Bounds/occupancy check for dropping a piece onto an arbitrary board snapshot,
-    // independent of this grid's live state. Used by AI placement simulation.
     public bool CanPlaceOnBoard(Cell[,] board, Cell[,] matrix, int x, int y)
     {
         for (int i = 0; i < matrix.GetLength(0); i++)
@@ -244,8 +242,6 @@ public class Grid
         return true;
     }
 
-    // Returns the resting Y for a hard drop of matrix at column x on the given board,
-    // or -1 if the piece can't even fit at its spawn row there.
     public int GetDropY(Cell[,] board, Cell[,] matrix, int x, int startY = 0)
     {
         if (!CanPlaceOnBoard(board, matrix, x, startY)) return -1;
@@ -279,9 +275,6 @@ public class Grid
         public int ChainDepth { get; } = chainDepth;
     }
 
-    // Resolves gravity, then repeatedly marks/clears/re-settles until the board is
-    // stable, mirroring the real Gravity -> Clearing -> WaitingAfterClear loop but
-    // instantly and on a throwaway copy, so it's safe to call from AI lookahead.
     public SimulationResult SimulateClearsAndGravity(Cell[,] board)
     {
         Cell[,] sim = CloneBoard(board);
