@@ -1,16 +1,25 @@
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
 
 namespace Gameplay;
 
-public class PlacementOption(int rotation, int column, Cell[,] resultingBoard, int clearsTriggered, int chainDepth)
+public class PlacementOption(int rotation, int column, Cell[,] resultingBoard, int clearsTriggered, int chainDepth, int maxHeight)
 {
     public int Rotation = rotation;
     public int Column = column;
     public Cell[,] ResultingBoard = resultingBoard;
     public int ClearsTriggered = clearsTriggered;
     public int ChainDepth = chainDepth;
-    public double Score;
+    public int MaxHeight = maxHeight;
+}
+
+public enum AIMode
+{
+    // Stack pieces as low as possible without triggering clears.
+    Build,
+    // Take the placement with the most cleared cells, then the longest chain.
+    Clear,
 }
 
 public class AIController(PlayerBoard board) : BoardController(board)
@@ -20,27 +29,19 @@ public class AIController(PlayerBoard board) : BoardController(board)
     private PlacementOption target;
     private Piece trackedPiece;
 
-    // Delay between individual rotate/move inputs so the CPU is watchable rather than
-    // snapping into place on the first frame.
-    private const double ActionInterval = 0.08;
-    private const double SoftDropInterval = 0.03;
+    private const double ActionInterval = 0.3;
     private double actionTimer;
 
-    // Scoring weights for evaluating a resulting board.
-    private const double ChainWeight = 100;
-    private const double ClearWeight = 10;
-    private const double AdjacencyWeight = 2;
-    private const double MaxHeightWeight = 4;
-    private const double TotalHeightWeight = 0.5;
-    private const double DangerPenalty = 10000;
+    // Switch to Clear once the board is either this tall or holds this many blocks.
+    private const int ClearAtHeight = 9;
+    private const int ClearAtBlockCount = 25;
+
+    public AIMode Mode { get; private set; } = AIMode.Build;
 
     public List<PlacementOption> GetAllPlacements(Piece currentPiece, Cell[,] board)
     {
         List<PlacementOption> options = [];
         Grid grid = Board.Grid;
-
-        // Rotate a copy of the matrix so the live piece is untouched. Rotation index N
-        // means N clockwise rotations from spawn, matching Piece.Rotation.
         Cell[,] matrix = currentPiece.Matrix;
         for (int rotation = 0; rotation < 4; rotation++)
         {
@@ -52,40 +53,53 @@ public class AIController(PlayerBoard board) : BoardController(board)
                 if (dropY < 0) continue;
 
                 Grid.SimulationResult simulation = grid.SimulatePlacement(board, matrix, column, dropY);
+                int maxHeight = MaxHeight(simulation.ResultBoard);
 
-                var option = new PlacementOption(rotation, column, simulation.ResultBoard, simulation.CellsCleared, simulation.ChainDepth);
-                option.Score = Evaluate(option);
-                options.Add(option);
+                options.Add(new PlacementOption(rotation, column, simulation.ResultBoard, simulation.CellsCleared, simulation.ChainDepth, maxHeight));
             }
         }
 
         return options;
     }
 
-    private double Evaluate(PlacementOption option)
+    private void UpdateMode(Cell[,] board)
     {
-        Cell[,] board = option.ResultingBoard;
-        Grid grid = Board.Grid;
+        bool enoughBlocks = MaxHeight(board) >= ClearAtHeight || BlockCount(board) >= ClearAtBlockCount;
+        Mode = enoughBlocks ? AIMode.Clear : AIMode.Build;
+    }
 
-        int maxHeight = 0;
-        int totalHeight = 0;
-        for (int x = 0; x < grid.Width; x++)
+    private PlacementOption PickBest(List<PlacementOption> options)
+    {
+        if (options.Count == 0) return null;
+
+        return Mode switch
+        {
+            // No clears first, then the lowest stack.
+            AIMode.Build => options
+                .OrderBy(o => o.ClearsTriggered > 0)
+                .ThenBy(o => o.MaxHeight)
+                .First(),
+
+            // Most cleared cells, then longest chain, then the lowest stack.
+            AIMode.Clear => options
+                .OrderByDescending(o => o.ClearsTriggered)
+                .ThenByDescending(o => o.ChainDepth)
+                .ThenBy(o => o.MaxHeight)
+                .First(),
+
+            _ => options[0],
+        };
+    }
+
+    private int MaxHeight(Cell[,] board)
+    {
+        int max = 0;
+        for (int x = 0; x < Board.Grid.Width; x++)
         {
             int height = ColumnHeight(board, x);
-            totalHeight += height;
-            if (height > maxHeight) maxHeight = height;
+            if (height > max) max = height;
         }
-
-        double score = option.ChainDepth * ChainWeight
-                     + option.ClearsTriggered * ClearWeight
-                     + CountAdjacentPairs(board) * AdjacencyWeight
-                     - maxHeight * MaxHeightWeight
-                     - totalHeight * TotalHeightWeight;
-
-        // Grid.CheckGameOver trips when anything occupies row 1.
-        if (maxHeight >= grid.Height - 1) score -= DangerPenalty;
-
-        return score;
+        return max;
     }
 
     private int ColumnHeight(Cell[,] board, int x)
@@ -93,41 +107,22 @@ public class AIController(PlayerBoard board) : BoardController(board)
         int height = Board.Grid.Height;
         for (int y = 0; y < height; y++)
         {
-            CellState state = board[x, y].State;
-            if (state != CellState.Empty && state != CellState.Invisible)
-                return height - y;
+            if (IsBlock(board[x, y])) return height - y;
         }
         return 0;
     }
 
-    // Same-symbol orthogonal neighbours — rewards setting up future matches.
-    private int CountAdjacentPairs(Cell[,] board)
+    private static int BlockCount(Cell[,] board)
     {
-        Grid grid = Board.Grid;
-        int pairs = 0;
-        for (int x = 0; x < grid.Width; x++)
+        int count = 0;
+        foreach (Cell cell in board)
         {
-            for (int y = 0; y < grid.Height; y++)
-            {
-                CellState state = board[x, y].State;
-                if (state == CellState.Empty || state == CellState.Invisible || state == CellState.Placeholder) continue;
-
-                if (x + 1 < grid.Width && board[x + 1, y].State == state) pairs++;
-                if (y + 1 < grid.Height && board[x, y + 1].State == state) pairs++;
-            }
+            if (IsBlock(cell)) count++;
         }
-        return pairs;
+        return count;
     }
 
-    private static PlacementOption PickBest(List<PlacementOption> options)
-    {
-        PlacementOption best = null;
-        foreach (PlacementOption option in options)
-        {
-            if (best is null || option.Score > best.Score) best = option;
-        }
-        return best;
-    }
+    private static bool IsBlock(Cell cell) => cell.State != CellState.Empty && cell.State != CellState.Invisible;
 
     protected override void OnNoActivePiece()
     {
@@ -148,26 +143,18 @@ public class AIController(PlayerBoard board) : BoardController(board)
 
         if (currentState == State.Deciding)
         {
-            List<PlacementOption> options = GetAllPlacements(piece, Board.Grid.Clone());
+            Cell[,] board = Board.Grid.Clone();
+            UpdateMode(board);
+
+            List<PlacementOption> options = GetAllPlacements(piece, board);
             target = PickBest(options);
 
-            // Nowhere fits; just let it fall and trigger game over naturally.
+            // Nowhere fits; drop it and let game over trigger naturally.
             currentState = target is null ? State.Dropping : State.Rotating;
             return;
         }
 
         actionTimer += gameTime.ElapsedGameTime.TotalSeconds;
-
-        if (currentState == State.Dropping)
-        {
-            while (actionTimer >= SoftDropInterval)
-            {
-                actionTimer -= SoftDropInterval;
-                if (!piece.SoftDrop()) return;
-            }
-            return;
-        }
-
         if (actionTimer < ActionInterval) return;
         actionTimer = 0;
 
@@ -191,6 +178,10 @@ public class AIController(PlayerBoard board) : BoardController(board)
             else currentState = State.Dropping;
 
             if (!moved) currentState = State.Dropping;
+        }
+        else if (currentState == State.Dropping)
+        {
+            piece.HardDrop();
         }
     }
 }
