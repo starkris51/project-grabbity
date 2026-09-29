@@ -10,7 +10,10 @@ public readonly struct PlayerControls(
     Keys softDrop = Keys.Down,
     Keys hardDrop = Keys.Space,
     Keys rotate = Keys.Up,
-    Keys rotateAlt = Keys.R)
+    Keys rotateAlt = Keys.R,
+    Keys symbol1Attack = Keys.D1,
+    Keys symbol2Attack = Keys.D2,
+    Keys symbol3Attack = Keys.D3)
 {
     public Keys MoveLeft { get; } = moveLeft;
     public Keys MoveRight { get; } = moveRight;
@@ -18,8 +21,11 @@ public readonly struct PlayerControls(
     public Keys HardDrop { get; } = hardDrop;
     public Keys Rotate { get; } = rotate;
     public Keys RotateAlt { get; } = rotateAlt;
+    public Keys Symbol1Attack { get; } = symbol1Attack;
+    public Keys Symbol2Attack { get; } = symbol2Attack;
+    public Keys Symbol3Attack { get; } = symbol3Attack;
 
-    public static readonly PlayerControls Default = new(Keys.Left, Keys.Right, Keys.Down, Keys.Space, Keys.Up, Keys.R);
+    public static readonly PlayerControls Default = new(Keys.Left, Keys.Right, Keys.Down, Keys.Space, Keys.Up, Keys.R, Keys.D1, Keys.D2, Keys.D3);
 }
 
 public class PlayerController(PlayerBoard board, PlayerControls? controls = null) : BoardController(board)
@@ -36,6 +42,8 @@ public class PlayerController(PlayerBoard board, PlayerControls? controls = null
     private double _dasTimer;
     private bool _dasCharged;
     private double _softDropTimer;
+
+    protected override void UpdateAlways(GameTime gameTime) => HandleAttack();
 
     protected override void UpdatePiece(Piece piece, GameTime gameTime)
     {
@@ -137,6 +145,13 @@ public class PlayerController(PlayerBoard board, PlayerControls? controls = null
     {
         if (KeyboardInfo.WasKeyJustPressed(_controls.Rotate) || KeyboardInfo.WasKeyJustPressed(_controls.RotateAlt))
             piece.Rotate();
+    }
+
+    private void HandleAttack()
+    {
+        if (KeyboardInfo.WasKeyJustPressed(_controls.Symbol1Attack)) Board.Grid.TrySendGarbage(CellState.Symbol1);
+        if (KeyboardInfo.WasKeyJustPressed(_controls.Symbol2Attack)) Board.Grid.TrySendGarbage(CellState.Symbol2);
+        if (KeyboardInfo.WasKeyJustPressed(_controls.Symbol3Attack)) Board.Grid.TrySendGarbage(CellState.Symbol3);
     }
 
     private void ResetState()

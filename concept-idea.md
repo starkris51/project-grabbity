@@ -2,7 +2,7 @@ Todo:
 
 [] Hold piece
 [X] Rework Player controls
-[] AI system
+[X] AI system
 [] Combat system
 [] Score system
 [] WIP Decorations

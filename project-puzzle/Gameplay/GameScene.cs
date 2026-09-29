@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Core;
@@ -12,6 +13,8 @@ public class PlayerBoard
     public required Grid Grid;
     public required PieceManager PieceManager;
     public BoardController Controller = null!;
+
+
     public int Score { get; set; } = 0;
 }
 
@@ -66,10 +69,22 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
             board.Grid.OnGameOver += () => Restart(board);
             board.Grid.RequestNewPiece += () => SpawnPiece(board);
+            board.Grid.RequestSendGarbage += (type, amount) => SendGarbage(board, type, amount);
+
 
             SpawnPiece(board);
         }
     }
+
+    private void SendGarbage(PlayerBoard sender, CellState type, int amount)
+    {
+        foreach (PlayerBoard target in boards)
+        {
+            if (target == sender || target.Grid.IsGameOver) continue;
+            target.Grid.QueueGarbage(type, amount);
+        }
+    }
+
 
     public void SetBoardCount(int count)
     {
@@ -99,12 +114,17 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
     {
         KeyboardInfo.Update();
 
-        // Temporary dev toggle for exercising the layout system before real UI/menu
-        // flow exists to pick a mode.
-        if (KeyboardInfo.WasKeyJustPressed(Microsoft.Xna.Framework.Input.Keys.D1)) SetBoardCount(1);
-        if (KeyboardInfo.WasKeyJustPressed(Microsoft.Xna.Framework.Input.Keys.D2)) SetBoardCount(2);
-        if (KeyboardInfo.WasKeyJustPressed(Microsoft.Xna.Framework.Input.Keys.D3)) SetBoardCount(3);
-        if (KeyboardInfo.WasKeyJustPressed(Microsoft.Xna.Framework.Input.Keys.D4)) SetBoardCount(4);
+        // // Temporary dev toggle for exercising the layout system before real UI/menu
+        // // flow exists to pick a mode.
+        // if (KeyboardInfo.WasKeyJustPressed(Microsoft.Xna.Framework.Input.Keys.D1)) SetBoardCount(1);
+        // if (KeyboardInfo.WasKeyJustPressed(Microsoft.Xna.Framework.Input.Keys.D2)) SetBoardCount(2);
+        // if (KeyboardInfo.WasKeyJustPressed(Microsoft.Xna.Framework.Input.Keys.D3)) SetBoardCount(3);
+        // if (KeyboardInfo.WasKeyJustPressed(Microsoft.Xna.Framework.Input.Keys.D4)) SetBoardCount(4);
+
+        // Debug: queue 5 random-typed garbage cells on the player's board. They drop in
+        // once the current piece locks and its chain resolves.
+        if (KeyboardInfo.WasKeyJustPressed(Microsoft.Xna.Framework.Input.Keys.G) && boards.Count > 0)
+            boards[0].Grid.QueueRandomGarbage(5);
 
         foreach (PlayerBoard board in boards)
         {

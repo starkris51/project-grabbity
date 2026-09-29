@@ -82,8 +82,20 @@ public class Cell
 {
     public bool IsClearing { get; set; }
 
-    public Cell(CellState state = CellState.Empty)
+    private bool _isGarbage;
+    public bool IsGarbage
     {
+        get => _isGarbage;
+        set
+        {
+            _isGarbage = value;
+            Background = UpdateBackgroundRect();
+        }
+    }
+
+    public Cell(CellState state = CellState.Empty, bool isGarbage = false)
+    {
+        _isGarbage = isGarbage;
         State = state;
     }
 
@@ -103,6 +115,11 @@ public class Cell
 
     private Rectangle UpdateBackgroundRect()
     {
+        if (IsGarbage)
+        {
+            return CellTexture.BackgroundBlock4;
+        }
+
         return State switch
         {
             CellState.Symbol1 => CellTexture.BackgroundBlock3,
@@ -161,6 +178,7 @@ public class Cell
 
     public void Clear()
     {
+        _isGarbage = false;
         State = CellState.Empty;
     }
 

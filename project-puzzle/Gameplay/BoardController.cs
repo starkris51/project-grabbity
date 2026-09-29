@@ -12,6 +12,14 @@ public abstract class BoardController(PlayerBoard board)
 
     public void Update(GameTime gameTime)
     {
+        if (Board.Grid.IsGameOver)
+        {
+            OnNoActivePiece();
+            return;
+        }
+
+        UpdateAlways(gameTime);
+
         Piece piece = Board.PieceManager.ActivePiece;
         if (piece is null || piece.IsLocked || Board.Grid.IsGameOver)
         {
@@ -29,4 +37,9 @@ public abstract class BoardController(PlayerBoard board)
     // between a piece locking and the next one spawning, or game over. Override to
     // clear any held-state timers (DAS charge, held direction, etc).
     protected virtual void OnNoActivePiece() { }
+
+    // Runs every frame while the board is alive, whether or not a piece is falling.
+    // Use for actions that don't need a piece, such as sending garbage.
+    protected virtual void UpdateAlways(GameTime gameTime) { }
+
 }

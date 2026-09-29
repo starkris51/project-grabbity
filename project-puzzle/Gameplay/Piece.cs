@@ -279,10 +279,6 @@ public class Piece
 
         if (_isInBag) return;
 
-        // Draw Ghost at the piece's immediate landing spot against the grid as it stands
-        // right now. Cells still mid-fall haven't reached their final resting place yet,
-        // so the ghost must sit on top of them where they currently are, not on the
-        // board's eventual settled state.
         int ghostY = y;
         while (_grid.IsValidPosition(x, ghostY + 1, matrix))
             ghostY++;
