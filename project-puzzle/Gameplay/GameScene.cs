@@ -34,6 +34,9 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
     public int BoardCount { get; private set; } = 2;
 
+    // Swap this out to try a different combat system.
+    public ICombatRule Combat { get; set; } = new NoCombat();
+
     public void Load()
     {
         tileset = _content.Load<Texture2D>("wip-tileset");
@@ -70,7 +73,8 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
             board.Grid.OnGameOver += () => Restart(board);
             board.Grid.RequestNewPiece += () => SpawnPiece(board);
             board.Grid.RequestSendGarbage += (type, amount) => SendGarbage(board, type, amount);
-
+            board.Grid.CellsCleared += step => Combat.OnCellsCleared(board, step);
+            board.Grid.ChainEnded += chain => Combat.OnChainEnded(board, chain);
 
             SpawnPiece(board);
         }
@@ -134,6 +138,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
             board.PieceManager.Update(gameTime);
             board.Controller.Update(gameTime);
+            Combat.Update(board, gameTime);
         }
     }
 

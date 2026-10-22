@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
@@ -20,9 +19,7 @@ public enum AIMode
     // Stack pieces as low as possible without triggering clears.
     Build,
     // Take the placement with the most cleared cells, then the longest chain.
-    Clear,
-    // Uses the filled attack bars to send attack to players
-    Attack
+    Clear
 }
 
 public class AIController(PlayerBoard board) : BoardController(board)
@@ -32,19 +29,12 @@ public class AIController(PlayerBoard board) : BoardController(board)
     private PlacementOption target;
     private Piece trackedPiece;
 
-    private const double ActionInterval = 0.3;
+    private const double ActionInterval = 0.8;
     private double actionTimer;
 
     // Switch to Clear once the board is either this tall or holds this many blocks.
     private const int ClearAtHeight = 9;
     private const int ClearAtBlockCount = 25;
-
-    // Basic testing attack: after a random delay, spend a random bar that can afford an attack.
-    private static readonly CellState[] AttackSymbols = [CellState.Symbol1, CellState.Symbol2, CellState.Symbol3];
-    private const double MinAttackDelay = 2.0;
-    private const double MaxAttackDelay = 8.0;
-    private double attackTimer;
-    private double nextAttackDelay = RollAttackDelay();
 
     public AIMode Mode { get; private set; } = AIMode.Build;
 
@@ -133,23 +123,6 @@ public class AIController(PlayerBoard board) : BoardController(board)
     }
 
     private static bool IsBlock(Cell cell) => cell.State != CellState.Empty && cell.State != CellState.Invisible;
-
-    protected override void UpdateAlways(GameTime gameTime)
-    {
-        attackTimer += gameTime.ElapsedGameTime.TotalSeconds;
-        if (attackTimer < nextAttackDelay) return;
-
-        attackTimer = 0;
-        nextAttackDelay = RollAttackDelay();
-
-        CellState[] ready = [.. AttackSymbols.Where(Board.Grid.CanSendGarbage)];
-        if (ready.Length == 0) return;
-
-        Board.Grid.TrySendGarbage(ready[Random.Shared.Next(ready.Length)]);
-    }
-
-    private static double RollAttackDelay() =>
-        MinAttackDelay + Random.Shared.NextDouble() * (MaxAttackDelay - MinAttackDelay);
 
     protected override void OnNoActivePiece()
     {

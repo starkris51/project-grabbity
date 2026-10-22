@@ -53,6 +53,7 @@ public class Grid
     private GridPhase _currentPhase = GridPhase.Playing;
     private double _phaseTimer = 0;
     private const double GravityStepDelay = 0.1;
+    private const double GravityGarbageStepDelay = 0.05;
     private const double ClearDelay = 0.4;
 
     private readonly List<Cell> _pendingGarbage = [];
@@ -63,20 +64,14 @@ public class Grid
     public event Action OnGameOver;
     public event Action RequestNewPiece;
 
-    public const int MaxSymbolBar = 10;
-
-    public int symbol1Bar = 0;
-    public int symbol2Bar = 0;
-    public int symbol3Bar = 0;
+    // Combat hooks. Grid only reports clears and delivers garbage; what a clear is worth is
+    // decided by the scene's ICombatRule.
+    public event Action<ClearStep> CellsCleared;
+    public event Action<int> ChainEnded;
     public event Action<CellState, int> RequestSendGarbage;
 
-    public int GetSymbolBar(CellState type) => type switch
-    {
-        CellState.Symbol1 => symbol1Bar,
-        CellState.Symbol2 => symbol2Bar,
-        CellState.Symbol3 => symbol3Bar,
-        _ => 0
-    };
+    // Clear steps in the current resolution. 0 while no chain is running.
+    private int _chain;
 
     private readonly Cell[,] cells;
 
@@ -93,38 +88,20 @@ public class Grid
         Reset();
     }
 
-    public void FillSymbolBar(CellState state)
+    // Sends garbage of the given type to the opponents. Routing is up to GameScene.
+    public void SendGarbage(CellState type, int amount)
     {
-        if (state == CellState.Symbol1)
-        {
-            symbol1Bar = Math.Min(symbol1Bar + 1, MaxSymbolBar);
-        } else if (state == CellState.Symbol2)
-        {
-            symbol2Bar = Math.Min(symbol2Bar + 1, MaxSymbolBar);
-        } else if (state == CellState.Symbol3)
-        {
-            symbol3Bar = Math.Min(symbol3Bar + 1, MaxSymbolBar);
-        }
+        if (IsGameOver || amount <= 0) return;
+        RequestSendGarbage?.Invoke(type, amount);
     }
 
-    // Each attack spends this much of a symbol bar and sends that many garbage blocks.
-    public const int GarbagePerAttack = 3;
-
-    public bool CanSendGarbage(CellState type) => !IsGameOver && GetSymbolBar(type) >= GarbagePerAttack;
-
-    public bool TrySendGarbage(CellState type)
+    // Removes up to `amount` queued garbage cells before they drop, newest first.
+    // Returns how many were removed, e.g. for countering incoming attacks.
+    public int CancelGarbage(int amount)
     {
-        if (!CanSendGarbage(type)) return false;
-
-        switch (type)
-        {
-            case CellState.Symbol1: symbol1Bar -= GarbagePerAttack; break;
-            case CellState.Symbol2: symbol2Bar -= GarbagePerAttack; break;
-            case CellState.Symbol3: symbol3Bar -= GarbagePerAttack; break;
-        }
-
-        RequestSendGarbage?.Invoke(type, GarbagePerAttack);
-        return true;
+        int removed = Math.Clamp(amount, 0, _pendingGarbage.Count);
+        _pendingGarbage.RemoveRange(_pendingGarbage.Count - removed, removed);
+        return removed;
     }
 
     public void SetViewport(Rectangle viewport, GridMargins margins = default)
@@ -436,7 +413,7 @@ public class Grid
         return SimulateClearsAndGravity(placed);
     }
 
-    private int RemoveMarkedCells(Cell[,] board, bool isSimulated = true)
+    private int RemoveMarkedCells(Cell[,] board, List<Cell> removed = null)
     {
         int cleared = 0;
         for (int x = 0; x < Width; x++)
@@ -445,10 +422,7 @@ public class Grid
             {
                 if (board[x, y].IsClearing)
                 {
-                    if (!isSimulated)
-                    {
-                        FillSymbolBar(board[x, y].State);
-                    }
+                    removed?.Add(board[x, y]);
                     board[x, y] = new Cell();
                     cleared++;
                 }
@@ -495,15 +469,18 @@ public class Grid
             case GridPhase.WaitingAfterClear:
                 if (_phaseTimer >= ClearDelay)
                 {
+                    List<Cell> removed = [];
+                    RemoveMarkedCells(cells, removed);
+                    _chain++;
+                    CellsCleared?.Invoke(new ClearStep(removed, _chain));
 
-                    RemoveMarkedCells(cells, false);
                     _currentPhase = GridPhase.Gravity;
                     _phaseTimer = 0;
                 }
                 break;
 
             case GridPhase.DroppingGarbage:
-                if (_phaseTimer >= GravityStepDelay)
+                if (_phaseTimer >= GravityGarbageStepDelay)
                 {
                     _phaseTimer = 0;
                     if (ApplyGravityOneStep(cells))
@@ -523,6 +500,13 @@ public class Grid
 
     private void EndResolution()
     {
+        if (_chain > 0)
+        {
+            int chain = _chain;
+            _chain = 0;
+            ChainEnded?.Invoke(chain);
+        }
+
         if (CheckGameOver())
         {
             _currentPhase = GridPhase.GameOver;
@@ -569,9 +553,7 @@ public class Grid
         cells[Width - 2, Height - 1] = new Cell(CellState.Invisible);
 
         _pendingGarbage.Clear();
-        symbol1Bar = 0;
-        symbol2Bar = 0;
-        symbol3Bar = 0;
+        _chain = 0;
         _currentPhase = GridPhase.Playing;
         _phaseTimer = 0;
     }
@@ -618,28 +600,6 @@ public class Grid
         }
 
         DrawPendingGarbage(spriteBatch);
-
-        // Draw da bars
-
-        DrawSymbolBar(spriteBatch, 16, symbol1Bar, CellTexture.MiniSymbol1);
-        DrawSymbolBar(spriteBatch, 48, symbol2Bar, CellTexture.MiniSymbol2);
-        DrawSymbolBar(spriteBatch, 80, symbol3Bar, CellTexture.MiniSymbol3);
-    }
-
-    private void DrawSymbolBar(SpriteBatch spriteBatch, int xOffset, int value, Rectangle symbolRect)
-    {
-        const int barWidth = 16;
-        int maxHeight = CellSize * Height / 2 ;
-        int barHeight = Math.Min(value, MaxSymbolBar) * maxHeight / MaxSymbolBar;
-        int barBottom = OffsetY + maxHeight * 2;
-        int barX = OffsetX + CellSize * Width + xOffset;
-
-        spriteBatch.Draw(_pixel, new Rectangle(barX, barBottom - barHeight, barWidth, barHeight), Color.White);
-
-        // Symbol icon under the bar
-        Rectangle iconDest = new(barX, barBottom + 4, barWidth, barWidth);
-        spriteBatch.Draw(_texture, iconDest, CellTexture.MiniBackgroundBlock1, Color.White);
-        spriteBatch.Draw(_texture, iconDest, symbolRect, Color.White);
     }
 
     private void DrawPendingGarbage(SpriteBatch spriteBatch)

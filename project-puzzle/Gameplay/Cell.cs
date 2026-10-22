@@ -123,8 +123,8 @@ public class Cell
         return State switch
         {
             CellState.Symbol1 => CellTexture.BackgroundBlock3,
-            CellState.Symbol2 => CellTexture.BackgroundBlock7,
-            CellState.Symbol3 => CellTexture.BackgroundBlock6,
+            CellState.Symbol2 => CellTexture.BackgroundBlock3,
+            CellState.Symbol3 => CellTexture.BackgroundBlock3,
             _ => CellTexture.Empty
         };
     }
