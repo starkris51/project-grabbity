@@ -17,6 +17,8 @@ public class Game1 : Game
     private KeyboardState _previousKeyboardState;
     private int ScreenWidth = 1920;
     private int ScreenHeight = 1080;
+    private Effect _colorChangeEffect;
+
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
@@ -40,6 +42,11 @@ public class Game1 : Game
     protected override void LoadContent()
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
+        _colorChangeEffect = Content.Load<Effect>("colorEffect");
+        _colorChangeEffect.Parameters["ScreenSize"].SetValue(new Vector2(ScreenWidth, ScreenHeight));
+        _colorChangeEffect.Parameters["TopColor"].SetValue(Color.Green.ToVector4());
+        _colorChangeEffect.Parameters["MiddleColor"].SetValue(Color.Green.ToVector4());
+        _colorChangeEffect.Parameters["BottomColor"].SetValue(Color.Green.ToVector4());
         SoundManager.Load(Content);
     }
 
@@ -66,7 +73,7 @@ public class Game1 : Game
 
         _graphics.GraphicsDevice.Clear(Color.Black); // Black background
 
-        _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        _spriteBatch.Begin(samplerState: SamplerState.PointClamp, effect: _colorChangeEffect);
 
         _sceneManager.Draw(gameTime, _spriteBatch); // Draw the current scene
 

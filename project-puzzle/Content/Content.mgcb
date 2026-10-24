@@ -13,6 +13,12 @@
 
 #---------------------------------- Content ---------------------------------#
 
+#begin colorEffect.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:colorEffect.fx
+
 #begin PuzzleGameTestTileset.png
 /importer:TextureImporter
 /processor:TextureProcessor

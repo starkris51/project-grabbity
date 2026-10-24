@@ -28,8 +28,8 @@ public readonly struct GridMargins(int top, int bottom, int left, int right)
 
 public class Grid
 {
-    public int Width = 8;
-    public int Height = 14;
+    public int Width = 7;
+    public int Height = 15;
 
     public int CellSize { get; private set; } = 32;
 
@@ -545,12 +545,12 @@ public class Grid
             }
         }
 
-        cells[0, Height - 1] = new Cell(CellState.Invisible);
-        cells[0, Height - 2] = new Cell(CellState.Invisible);
-        cells[1, Height - 1] = new Cell(CellState.Invisible);
-        cells[Width - 1, Height - 1] = new Cell(CellState.Invisible);
-        cells[Width - 1, Height - 2] = new Cell(CellState.Invisible);
-        cells[Width - 2, Height - 1] = new Cell(CellState.Invisible);
+        // cells[0, Height - 1] = new Cell(CellState.Invisible);
+        // cells[0, Height - 2] = new Cell(CellState.Invisible);
+        // cells[1, Height - 1] = new Cell(CellState.Invisible);
+        // cells[Width - 1, Height - 1] = new Cell(CellState.Invisible);
+        // cells[Width - 1, Height - 2] = new Cell(CellState.Invisible);
+        // cells[Width - 2, Height - 1] = new Cell(CellState.Invisible);
 
         _pendingGarbage.Clear();
         _chain = 0;
