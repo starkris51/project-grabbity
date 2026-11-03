@@ -6,9 +6,9 @@ namespace Gameplay;
 // PlayerController today, an AIController later. Owns fetching the active piece and
 // short-circuiting when there's nothing to control, so subclasses only implement the
 // actual decision-making.
-public abstract class BoardController(PlayerBoard board)
+public abstract class BoardController(BattleBoard board)
 {
-    protected readonly PlayerBoard Board = board;
+    protected readonly BattleBoard Board = board;
 
     public void Update(GameTime gameTime)
     {

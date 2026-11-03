@@ -44,9 +44,9 @@ public class Game1 : Game
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _colorChangeEffect = Content.Load<Effect>("colorEffect");
         _colorChangeEffect.Parameters["ScreenSize"].SetValue(new Vector2(ScreenWidth, ScreenHeight));
-        _colorChangeEffect.Parameters["TopColor"].SetValue(Color.Green.ToVector4());
-        _colorChangeEffect.Parameters["MiddleColor"].SetValue(Color.Green.ToVector4());
-        _colorChangeEffect.Parameters["BottomColor"].SetValue(Color.Green.ToVector4());
+        _colorChangeEffect.Parameters["TopColor"].SetValue(Color.White.ToVector4());
+        _colorChangeEffect.Parameters["MiddleColor"].SetValue(Color.White.ToVector4());
+        _colorChangeEffect.Parameters["BottomColor"].SetValue(Color.White.ToVector4());
         SoundManager.Load(Content);
     }
 

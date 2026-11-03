@@ -22,7 +22,7 @@ public readonly struct PlayerControls(
     public static readonly PlayerControls Default = new(Keys.Left, Keys.Right, Keys.Down, Keys.Space, Keys.Up, Keys.R);
 }
 
-public class PlayerController(PlayerBoard board, PlayerControls? controls = null) : BoardController(board)
+public class PlayerController(BattleBoard board, PlayerControls? controls = null) : BoardController(board)
 {
     private const double DasDelay = 0.15;
     private const double ArrInterval = 0.03;

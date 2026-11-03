@@ -36,6 +36,7 @@ public class ScalingWindow
     public void Initialize()
     {
         _renderTarget = new RenderTarget2D(_graphics.GraphicsDevice, VirtualWidth, VirtualHeight);
+        CenterWindow();
         UpdateDestinationRect();
     }
 
@@ -55,6 +56,8 @@ public class ScalingWindow
         }
 
         _graphics.ApplyChanges();
+        if (!_graphics.IsFullScreen)
+            CenterWindow();
         UpdateDestinationRect();
     }
 
@@ -107,28 +110,40 @@ public class ScalingWindow
         int height = _window.ClientBounds.Height;
 
         if (width <= 0 || height <= 0) return;
-        if (width == _graphics.PreferredBackBufferWidth && height == _graphics.PreferredBackBufferHeight) return;
 
-        _graphics.PreferredBackBufferWidth = width;
-        _graphics.PreferredBackBufferHeight = height;
-        _graphics.ApplyChanges();
+        if (width != _graphics.PreferredBackBufferWidth || height != _graphics.PreferredBackBufferHeight)
+        {
+            _graphics.PreferredBackBufferWidth = width;
+            _graphics.PreferredBackBufferHeight = height;
+            _graphics.ApplyChanges();
+        }
 
         UpdateDestinationRect();
     }
 
-    // Largest integer multiple of the virtual resolution that fits on the display,
-    // leaving headroom for the title bar and taskbar.
+    // Fit the initial client area within the display, leaving room for window chrome.
     private void SetWindowedSize()
     {
-        const int DesktopHeadroom = 100;
+        const int WindowWidthHeadroom = 80;
+        const int WindowHeightHeadroom = 100;
 
         DisplayMode displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
-        int scale = Math.Max(1, Math.Min(
-            displayMode.Width / VirtualWidth,
-            (displayMode.Height - DesktopHeadroom) / VirtualHeight));
+        int availableWidth = Math.Max(1, displayMode.Width - WindowWidthHeadroom);
+        int availableHeight = Math.Max(1, displayMode.Height - WindowHeightHeadroom);
+        float scale = Math.Min(
+            (float)availableWidth / VirtualWidth,
+            (float)availableHeight / VirtualHeight);
 
-        _graphics.PreferredBackBufferWidth = VirtualWidth * scale;
-        _graphics.PreferredBackBufferHeight = VirtualHeight * scale;
+        _graphics.PreferredBackBufferWidth = Math.Max(1, (int)(VirtualWidth * scale));
+        _graphics.PreferredBackBufferHeight = Math.Max(1, (int)(VirtualHeight * scale));
+    }
+
+    private void CenterWindow()
+    {
+        DisplayMode displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+        _window.Position = new Point(
+            Math.Max(0, (displayMode.Width - _window.ClientBounds.Width) / 2),
+            Math.Max(0, (displayMode.Height - _window.ClientBounds.Height) / 2));
     }
 
     private void UpdateDestinationRect()

@@ -22,7 +22,7 @@ public enum AIMode
     Clear
 }
 
-public class AIController(PlayerBoard board) : BoardController(board)
+public class AIController(BattleBoard board) : BoardController(board)
 {
     private enum State { Deciding, Rotating, MovingHorizontal, Dropping }
     private State currentState = State.Deciding;

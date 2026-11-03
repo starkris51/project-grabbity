@@ -8,14 +8,13 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Gameplay;
 
-public class PlayerBoard
+public sealed class BattleBoard
 {
-    public required Grid Grid;
-    public required PieceManager PieceManager;
+    public required Grid Grid { get; init; }
+    public required PieceManager PieceManager { get; init; }
+    public required ICombatant Combatant { get; init; }
     public BoardController Controller = null!;
 
-
-    public int Score { get; set; } = 0;
 }
 
 public class GameScene(ContentManager content, int screenWidth, int screenHeight) : IScene
@@ -23,14 +22,14 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
     private static readonly GridMargins SingleBoardMargins = new(top: 40, bottom: 40, left: 40, right: 40);
 
     // 450 in the future
-    private static readonly GridMargins MultiBoardMargins = new(top: 40, bottom: 60, left: 60, right: 60);
+    private static readonly GridMargins MultiBoardMargins = new(top: 450, bottom: 40, left: 60, right: 60);
 
     private const int UpcomingPieceCount = 3;
 
     private readonly ContentManager _content = content;
     private Texture2D tileset = null!;
 
-    private readonly List<PlayerBoard> boards = [];
+    private readonly List<BattleBoard> boards = [];
 
     public int BoardCount { get; private set; } = 2;
 
@@ -57,9 +56,17 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
             var pieceManager = new PieceManager(UpcomingPieceCount);
             pieceManager.Initialize(grid, tileset);
 
-            var board = new PlayerBoard { Grid = grid, PieceManager = pieceManager };
-            // Use AI Controller if board is second
-            if (item.index == 1)
+            ICombatant combatant = item.index == 0
+                ? new PlayerCharacter("Player", maxHealth: 100, attack: 10)
+                : CreateTestEnemy();
+            var board = new BattleBoard
+            {
+                Grid = grid,
+                PieceManager = pieceManager,
+                Combatant = combatant
+            };
+            // The first board is the player; remaining boards are enemies.
+            if (item.index > 0)
             {
                 board.Controller = new AIController(board);
             }
@@ -80,9 +87,36 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
         }
     }
 
-    private void SendGarbage(PlayerBoard sender, CellState type, int amount)
+    private static EnemyCharacter CreateTestEnemy()
     {
-        foreach (PlayerBoard target in boards)
+        var definition = new EnemyDefinition(
+            id: "training-enemy",
+            name: "Training Enemy",
+            maxHealth: 80,
+            attack: 8,
+            fullBodyAsset: null,
+            targets:
+            [
+                new EnemyTargetDefinition(
+                    id: "head",
+                    name: "Head",
+                    maxHealth: 20,
+                    hitChanceMultiplier: 0.65f,
+                    destroyedEffect: EnemyTargetDestroyedEffect.ExposeWeakSpot),
+                new EnemyTargetDefinition(
+                    id: "torso",
+                    name: "Torso",
+                    maxHealth: 40,
+                    hitChanceMultiplier: 1.0f,
+                    destroyedEffect: EnemyTargetDestroyedEffect.DisableAttack)
+            ]);
+
+        return new EnemyCharacter(definition);
+    }
+
+    private void SendGarbage(BattleBoard sender, CellState type, int amount)
+    {
+        foreach (BattleBoard target in boards)
         {
             if (target == sender || target.Grid.IsGameOver) continue;
             target.Grid.QueueGarbage(type, amount);
@@ -96,12 +130,12 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
         if (tileset != null) CreateBoards();
     }
 
-    private void SpawnPiece(PlayerBoard board)
+    private void SpawnPiece(BattleBoard board)
     {
         board.PieceManager.SpawnNext();
     }
 
-    private void Restart(PlayerBoard board)
+    private void Restart(BattleBoard board)
     {
         board.Grid.Reset();
         board.PieceManager.Initialize(board.Grid, tileset);
@@ -130,7 +164,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
         if (KeyboardInfo.WasKeyJustPressed(Microsoft.Xna.Framework.Input.Keys.G) && boards.Count > 0)
             boards[0].Grid.QueueRandomGarbage(5);
 
-        foreach (PlayerBoard board in boards)
+        foreach (BattleBoard board in boards)
         {
             board.Grid.Update(gameTime);
 
@@ -144,7 +178,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
     public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
-        foreach (PlayerBoard board in boards)
+        foreach (BattleBoard board in boards)
         {
             board.Grid.Draw(spriteBatch);
             board.PieceManager.Draw(spriteBatch);

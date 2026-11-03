@@ -21,13 +21,13 @@ public readonly struct ClearStep(IReadOnlyList<Cell> cleared, int chain)
 public interface ICombatRule
 {
     // After each clear step, while the chain may still continue.
-    void OnCellsCleared(PlayerBoard board, ClearStep step) { }
+    void OnCellsCleared(BattleBoard board, ClearStep step) { }
 
     // Once the board has settled after a chain of at least one clear.
-    void OnChainEnded(PlayerBoard board, int chain) { }
+    void OnChainEnded(BattleBoard board, int chain) { }
 
     // Every frame for each live board, for meters, timers, counter windows etc.
-    void Update(PlayerBoard board, GameTime gameTime) { }
+    void Update(BattleBoard board, GameTime gameTime) { }
 }
 
 // No attacks. Placeholder until a real combat system is picked.
