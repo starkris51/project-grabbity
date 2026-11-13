@@ -31,4 +31,10 @@ public interface ICombatRule
 }
 
 // No attacks. Placeholder until a real combat system is picked.
-public class NoCombat : ICombatRule { }
+public class WIPCombat : ICombatRule
+{
+    public void OnCellsCleared(BattleBoard board, ClearStep step)
+    {
+        
+    }
+}

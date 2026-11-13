@@ -24,6 +24,7 @@ namespace Gameplay
         public int Health { get; private set; }
         public int Attack { get; }
         public string? FullBodyAsset => null;
+        public int SelectedTarget { get; set; }
 
         public void TakeDamage(int amount)
         {

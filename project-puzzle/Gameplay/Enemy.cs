@@ -1,117 +1,93 @@
 #nullable enable
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
 
-namespace Gameplay
+namespace Gameplay;
+
+public sealed class Enemy : ICombatant
 {
-    public enum EnemyTargetDestroyedEffect
+    public enum TargetDestroyedEffect
     {
-        // WIP
         None,
         DisableAttack,
         ExposeWeakSpot
     }
 
-    public sealed class EnemyTargetDefinition(
-        string id,
-        string name,
-        int maxHealth,
-        float hitChanceMultiplier,
-        EnemyTargetDestroyedEffect destroyedEffect = EnemyTargetDestroyedEffect.None)
+    public sealed class Target
     {
-        public string Id { get; } = id;
-        public string Name { get; } = name;
-        public int MaxHealth { get; } = maxHealth;
-        public float HitChanceMultiplier { get; } = hitChanceMultiplier;
-        public EnemyTargetDestroyedEffect DestroyedEffect { get; } = destroyedEffect;
-    }
-
-    public sealed class EnemyDefinition
-    {
-        public EnemyDefinition(
+        public Target(
             string id,
             string name,
-            int maxHealth,
-            int attack,
-            string? fullBodyAsset,
-            IEnumerable<EnemyTargetDefinition> targets)
+            float hitChanceMultiplier,
+            int? maxHealth = null,
+            TargetDestroyedEffect destroyedEffect = TargetDestroyedEffect.None)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(id);
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxHealth);
-            ArgumentOutOfRangeException.ThrowIfNegative(attack);
-            ArgumentNullException.ThrowIfNull(targets);
-
-            EnemyTargetDefinition[] targetArray = targets.ToArray();
-            if (targetArray.Any(target => target is null))
-                throw new ArgumentException("Enemy targets cannot contain null entries.", nameof(targets));
-            if (targetArray.Select(target => target.Id).Distinct(StringComparer.Ordinal).Count() != targetArray.Length)
-                throw new ArgumentException("Enemy target IDs must be unique.", nameof(targets));
+            if (maxHealth is <= 0)
+                throw new ArgumentOutOfRangeException(nameof(maxHealth));
+            if (!float.IsFinite(hitChanceMultiplier) || hitChanceMultiplier < 0)
+                throw new ArgumentOutOfRangeException(nameof(hitChanceMultiplier));
 
             Id = id;
             Name = name;
+            HitChanceMultiplier = hitChanceMultiplier;
             MaxHealth = maxHealth;
-            Attack = attack;
-            FullBodyAsset = string.IsNullOrWhiteSpace(fullBodyAsset) ? null : fullBodyAsset;
-            Targets = Array.AsReadOnly(targetArray);
+            Health = maxHealth;
+            DestroyedEffect = destroyedEffect;
         }
 
         public string Id { get; }
         public string Name { get; }
-        public int MaxHealth { get; }
-        public int Attack { get; }
-        public string? FullBodyAsset { get; }
-        public IReadOnlyList<EnemyTargetDefinition> Targets { get; }
-    }
-
-    public sealed class EnemyCharacter : ICombatant
-    {
-        public EnemyCharacter(EnemyDefinition definition)
-        {
-            ArgumentNullException.ThrowIfNull(definition);
-
-            Definition = definition;
-            Name = definition.Name;
-            MaxHealth = definition.MaxHealth;
-            Health = definition.MaxHealth;
-            Attack = definition.Attack;
-            Targets = Array.AsReadOnly(
-                definition.Targets.Select(target => new EnemyTarget(target)).ToArray());
-        }
-
-        public EnemyDefinition Definition { get; }
-        public string Name { get; }
-        public int MaxHealth { get; }
-        public int Health { get; private set; }
-        public int Attack { get; }
-        public string? FullBodyAsset => Definition.FullBodyAsset;
-        public IReadOnlyList<EnemyTarget> Targets { get; }
-
-        public void TakeDamage(int amount)
-        {
-            Health = Math.Max(0, Health - Math.Max(0, amount));
-        }
-    }
-
-    public sealed class EnemyTarget
-    {
-        public EnemyTarget(EnemyTargetDefinition definition)
-        {
-            ArgumentNullException.ThrowIfNull(definition);
-
-            Definition = definition;
-            Health = definition.MaxHealth;
-        }
-
-        public EnemyTargetDefinition Definition { get; }
-        public int Health { get; private set; }
+        public int? MaxHealth { get; }
+        public int? Health { get; private set; }
+        public float HitChanceMultiplier { get; }
+        public TargetDestroyedEffect DestroyedEffect { get; }
         public bool IsDestroyed => Health == 0;
 
         public void TakeDamage(int amount)
         {
-            Health = Math.Max(0, Health - Math.Max(0, amount));
+            if (Health is int health)
+            {
+                Health = Math.Max(0, health - Math.Max(0, amount));
+            }
         }
+    }
+
+    public Enemy(
+        string name,
+        int maxHealth,
+        int attack,
+        Target[] targets,
+        string? fullBodyAsset = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxHealth);
+        ArgumentOutOfRangeException.ThrowIfNegative(attack);
+        ArgumentNullException.ThrowIfNull(targets);
+
+        foreach (Target target in targets)
+        {
+            ArgumentNullException.ThrowIfNull(target);
+        }
+
+        Name = name;
+        MaxHealth = maxHealth;
+        Health = maxHealth;
+        Attack = attack;
+        Targets = targets;
+        FullBodyAsset = string.IsNullOrWhiteSpace(fullBodyAsset) ? null : fullBodyAsset;
+    }
+
+    public string Name { get; }
+    public int MaxHealth { get; }
+    public int Health { get; private set; }
+    public int Attack { get; }
+    public Target[] Targets { get; }
+    public string? FullBodyAsset { get; }
+
+    public void TakeDamage(int amount)
+    {
+        Health = Math.Max(0, Health - Math.Max(0, amount));
     }
 }

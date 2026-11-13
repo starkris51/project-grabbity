@@ -34,7 +34,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
     public int BoardCount { get; private set; } = 2;
 
     // Swap this out to try a different combat system.
-    public ICombatRule Combat { get; set; } = new NoCombat();
+    public ICombatRule Combat { get; set; } = new WIPCombat();
 
     public void Load()
     {
@@ -87,32 +87,25 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
         }
     }
 
-    private static EnemyCharacter CreateTestEnemy()
-    {
-        var definition = new EnemyDefinition(
-            id: "training-enemy",
-            name: "Training Enemy",
-            maxHealth: 80,
-            attack: 8,
-            fullBodyAsset: null,
-            targets:
-            [
-                new EnemyTargetDefinition(
-                    id: "head",
-                    name: "Head",
-                    maxHealth: 20,
-                    hitChanceMultiplier: 0.65f,
-                    destroyedEffect: EnemyTargetDestroyedEffect.ExposeWeakSpot),
-                new EnemyTargetDefinition(
-                    id: "torso",
-                    name: "Torso",
-                    maxHealth: 40,
-                    hitChanceMultiplier: 1.0f,
-                    destroyedEffect: EnemyTargetDestroyedEffect.DisableAttack)
-            ]);
-
-        return new EnemyCharacter(definition);
-    }
+    private static Enemy CreateTestEnemy() => new(
+        name: "Test",
+        maxHealth: 80,
+        attack: 8,
+        fullBodyAsset: "ghust",
+        targets:
+        [
+            new Enemy.Target(
+                id: "head",
+                name: "Head",
+                maxHealth: 20,
+                hitChanceMultiplier: 0.65f,
+                destroyedEffect: Enemy.TargetDestroyedEffect.ExposeWeakSpot),
+            new Enemy.Target(
+                id: "torso",
+                name: "Torso",
+                hitChanceMultiplier: 1.0f,
+                destroyedEffect: Enemy.TargetDestroyedEffect.None)
+        ]);
 
     private void SendGarbage(BattleBoard sender, CellState type, int amount)
     {
