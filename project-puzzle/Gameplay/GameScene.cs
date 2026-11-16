@@ -97,6 +97,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
             board.Grid.RequestSendDamage += amount => SendGarbage(board, amount);
             board.Grid.CellsCleared += step => Combat.OnCellsCleared(board, step);
             board.Grid.ChainEnded += chain => Combat.OnChainEnded(board, chain);
+            board.Grid.DealDamage += board.Combatant.TakeDamage;
 
             SpawnPiece(board);
         }
@@ -180,8 +181,12 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
             if (board.Grid.IsGameOver) continue;
 
-            board.PieceManager.Update(gameTime);
-            board.Controller.Update(gameTime);
+            if (board.Grid.CanUpdateActivePiece)
+            {
+                board.PieceManager.Update(gameTime);
+            }
+
+            board.Controller.Update(gameTime, board.Grid.CanUpdateActivePiece);
             Combat.Update(board, gameTime);
         }
     }

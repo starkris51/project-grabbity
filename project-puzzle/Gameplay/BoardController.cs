@@ -10,7 +10,7 @@ public abstract class BoardController(BattleBoard board)
 {
     protected readonly BattleBoard Board = board;
 
-    public void Update(GameTime gameTime)
+    public void Update(GameTime gameTime, bool canControlPiece = true)
     {
         if (Board.Grid.IsGameOver)
         {
@@ -21,7 +21,7 @@ public abstract class BoardController(BattleBoard board)
         UpdateAlways(gameTime);
 
         Piece piece = Board.PieceManager.ActivePiece;
-        if (piece is null || piece.IsLocked || Board.Grid.IsGameOver)
+        if (!canControlPiece || piece is null || piece.IsLocked || Board.Grid.IsGameOver)
         {
             OnNoActivePiece();
             return;

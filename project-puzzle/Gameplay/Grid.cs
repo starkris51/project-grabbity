@@ -58,6 +58,7 @@ public class Grid
     public int PendingGarbageCount => _pendingGarbage.Count;
 
     public bool IsGameOver => _currentPhase == GridPhase.GameOver;
+    public bool CanUpdateActivePiece => _currentPhase == GridPhase.Playing;
 
     public event Action OnGameOver;
     public event Action RequestNewPiece;
@@ -67,9 +68,11 @@ public class Grid
     public event Action<ClearStep> CellsCleared;
     public event Action<int> ChainEnded;
     public event Action<int> RequestSendDamage;
+    public event Action<int> DealDamage;
 
     // Clear steps in the current resolution. 0 while no chain is running.
     private int _chain;
+    private bool _resumeActivePieceAfterResolution;
 
     private readonly Cell[,] cells;
 
@@ -190,6 +193,8 @@ public class Grid
     private bool MarkMatches(Cell[,] board)
     {
         bool found = false;
+        bool[,] horizontalMatches = new bool[Width, Height];
+        bool[,] verticalMatches = new bool[Width, Height];
 
         // Horizontal runs
         for (int y = 0; y < Height; y++)
@@ -211,8 +216,10 @@ public class Grid
                 if (runEnd - runStart >= AmountToClear)
                 {
                     found = true;
-                    for (int x = runStart; x < runEnd; x++) {
+                    for (int x = runStart; x < runEnd; x++)
+                    {
                         board[x, y].IsClearing = true;
+                        horizontalMatches[x, y] = true;
                     }
                 }
 
@@ -240,8 +247,10 @@ public class Grid
                 if (runEnd - runStart >= AmountToClear)
                 {
                     found = true;
-                    for (int y = runStart; y < runEnd; y++) {
+                    for (int y = runStart; y < runEnd; y++)
+                    {
                         board[x, y].IsClearing = true;
+                        verticalMatches[x, y] = true;
                     }
                 }
 
@@ -249,12 +258,12 @@ public class Grid
             }
         }
 
-        if (found) MarkGarbage(board);
+        if (found) MarkGarbage(board, horizontalMatches, verticalMatches);
 
         return found;
     }
 
-    private void MarkGarbage(Cell[,] board)
+    private void MarkGarbage(Cell[,] board, bool[,] horizontalMatches, bool[,] verticalMatches)
     {
         for (int x = 0; x < Width; x++)
         {
@@ -263,10 +272,10 @@ public class Grid
                 Cell cell = board[x, y];
                 if (!cell.IsDamage || cell.IsClearing) continue;
 
-                if (IsClearingOfType(board, x, y - 1, cell.State) ||
-                    IsClearingOfType(board, x, y + 1, cell.State) ||
-                    IsClearingOfType(board, x - 1, y, cell.State) ||
-                    IsClearingOfType(board, x + 1, y, cell.State))
+                if (IsClearingOfType(board, horizontalMatches, x - 1, y, cell.State) ||
+                    IsClearingOfType(board, horizontalMatches, x + 1, y, cell.State) ||
+                    IsClearingOfType(board, verticalMatches, x, y - 1, cell.State) ||
+                    IsClearingOfType(board, verticalMatches, x, y + 1, cell.State))
                 {
                     cell.IsClearing = true;
                 }
@@ -274,11 +283,11 @@ public class Grid
         }
     }
 
-    private bool IsClearingOfType(Cell[,] board, int x, int y, CellState state)
+    private bool IsClearingOfType(Cell[,] board, bool[,] matchesOfType, int x, int y, CellState state)
     {
         if (x < 0 || x >= Width || y < 0 || y >= Height) return false;
         Cell cell = board[x, y];
-        if (!cell.IsClearing || cell.IsDamage) return false;
+        if (!matchesOfType[x, y] || cell.IsDamage) return false;
 
         return state == CellState.Universal
             ? cell.State is CellState.Symbol1 or CellState.Symbol2 or CellState.Symbol3
@@ -435,8 +444,45 @@ public class Grid
         return cleared;
     }
 
+    public void UpdateDamageBlock(Double elapsed)
+    {
+        bool expiredAny = false;
+
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                Cell cell = cells[x, y];
+                if (!cell.IsDamage) continue;
+
+                if (cell.DamageTimer > 0)
+                {
+                    cell.DamageTimer = Math.Max(0, cell.DamageTimer - elapsed);
+                    if (cell.DamageTimer > 0) continue;
+                }
+
+                DealDamage?.Invoke(cell.DamageAmount);
+                cell.Clear();
+                expiredAny = true;
+            }
+        }
+
+        if (expiredAny && _currentPhase == GridPhase.Playing)
+        {
+            _currentPhase = GridPhase.Gravity;
+            _phaseTimer = 0;
+            _resumeActivePieceAfterResolution = true;
+        }
+    }
+
     public void Update(GameTime gameTime)
     {
+        if (_currentPhase == GridPhase.GameOver) return;
+
+        double elapsed = gameTime.ElapsedGameTime.TotalSeconds;
+
+        UpdateDamageBlock(elapsed);
+
         if (_currentPhase == GridPhase.Playing) return;
 
         _phaseTimer += gameTime.ElapsedGameTime.TotalSeconds;
@@ -513,8 +559,14 @@ public class Grid
 
         if (CheckGameOver())
         {
+            _resumeActivePieceAfterResolution = false;
             _currentPhase = GridPhase.GameOver;
             OnGameOver?.Invoke();
+        }
+        else if (_resumeActivePieceAfterResolution)
+        {
+            _resumeActivePieceAfterResolution = false;
+            _currentPhase = GridPhase.Playing;
         }
         else if (_pendingGarbage.Count > 0)
         {
@@ -558,6 +610,7 @@ public class Grid
 
         _pendingGarbage.Clear();
         _chain = 0;
+        _resumeActivePieceAfterResolution = false;
         _currentPhase = GridPhase.Playing;
         _phaseTimer = 0;
     }
