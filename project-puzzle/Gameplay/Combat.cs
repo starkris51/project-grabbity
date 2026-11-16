@@ -11,8 +11,8 @@ public readonly struct ClearStep(IReadOnlyList<Cell> cleared, int chain)
     public IReadOnlyList<Cell> Cleared { get; } = cleared;
     public int Chain { get; } = chain;
 
-    public int Count(CellState type) => Cleared.Count(c => !c.IsGarbage && c.State == type);
-    public int GarbageCount => Cleared.Count(c => c.IsGarbage);
+    public int Count(CellState type) => Cleared.Count(c => !c.IsDamage && c.State == type);
+    public int GarbageCount => Cleared.Count(c => c.IsDamage);
 }
 
 // Decides how boards attack each other. Grid reports clears and receives garbage; everything

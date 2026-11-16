@@ -6,8 +6,6 @@ namespace Core;
 
 public class ScalingWindow
 {
-    private static extern void SDL_MaximizeWindow(IntPtr window);
-
     public int VirtualWidth { get; }
     public int VirtualHeight { get; }
 

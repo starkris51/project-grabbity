@@ -32,6 +32,7 @@ public static class CellTexture
     public static readonly Rectangle Symbol1 = FromCoords(3, 1);
     public static readonly Rectangle Symbol2 = FromCoords(1, 1);
     public static readonly Rectangle Symbol3 = FromCoords(2, 1);
+    public static readonly Rectangle Universal = FromCoords(0, 0);
     public static readonly Rectangle Select = FromCoords(6, 2);
 
     public static readonly Rectangle MiniBackgroundBlock1 = FromCoordsSmall(14, 2);
@@ -45,7 +46,8 @@ public enum CellType
 {
     Symbol1,
     Symbol2,
-    Symbol3
+    Symbol3,
+    Universal
 }
 
 public enum CellState
@@ -56,47 +58,61 @@ public enum CellState
     Blocker,
     Symbol1,
     Symbol2,
-    Symbol3
-}
-
-public static class CellHelpers
-{
-    // Symbol1 beats symbol2, symbol2 beats symbol3, symbol3 beats symbol1
-    public static bool Beats(this CellState a, CellState b)
-    {
-        return (a == CellState.Symbol1 && b == CellState.Symbol2) ||
-               (a == CellState.Symbol2 && b == CellState.Symbol3) ||
-               (a == CellState.Symbol3 && b == CellState.Symbol1);
-    }
-}
-
-public enum Direction
-{
-    Up,
-    Down,
-    Left,
-    Right
+    Symbol3,
+    Universal
 }
 
 public class Cell
 {
     public bool IsClearing { get; set; }
+    public double DamageTimer { get; set; }
 
-    private bool _isGarbage;
-    public bool IsGarbage
+    private bool _isDamage;
+    public bool IsDamage
     {
-        get => _isGarbage;
+        get => _isDamage;
         set
         {
-            _isGarbage = value;
+            _isDamage = value;
             Background = UpdateBackgroundRect();
         }
     }
 
-    public Cell(CellState state = CellState.Empty, bool isGarbage = false)
+    private int _damageAmount;
+    public int DamageAmount
     {
-        _isGarbage = isGarbage;
+        get => _damageAmount;
+        set
+        {
+            if (value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value));
+            _damageAmount = value;
+        }
+    }
+
+    public Cell(CellState state = CellState.Empty, bool isDamage = false, double damageTimer = 0, int damageAmount = 1)
+    {
+        _isDamage = isDamage;
+        DamageTimer = damageTimer;
+        DamageAmount = damageAmount;
         State = state;
+    }
+
+    public void SetDamageTimer(double seconds)
+    {
+        if (seconds < 0)
+            throw new ArgumentOutOfRangeException(nameof(seconds));
+
+        DamageTimer = seconds;
+    }
+
+    public void SetDamage(int damageAmount, double timerSeconds = 0)
+    {
+        if (damageAmount < 0)
+            throw new ArgumentOutOfRangeException(nameof(damageAmount));
+
+        DamageAmount = damageAmount;
+        DamageTimer = timerSeconds;
     }
 
     private Rectangle UpdateSourceRect()
@@ -109,15 +125,16 @@ public class Cell
             CellState.Symbol1 => CellTexture.Symbol1,
             CellState.Symbol2 => CellTexture.Symbol2,
             CellState.Symbol3 => CellTexture.Symbol3,
+            CellState.Universal => CellTexture.Universal,
             _ => throw new ArgumentOutOfRangeException()
         };
     }
 
     private Rectangle UpdateBackgroundRect()
     {
-        if (IsGarbage)
+        if (IsDamage)
         {
-            return CellTexture.BackgroundBlock4;
+            return CellTexture.BackgroundBlock2;
         }
 
         return State switch
@@ -178,20 +195,10 @@ public class Cell
 
     public void Clear()
     {
-        _isGarbage = false;
+        _isDamage = false;
+        DamageTimer = 0;
+        DamageAmount = 0;
         State = CellState.Empty;
-    }
-
-    public List<(Direction, CellState)> CheckNeighborStates(Cell[,] grid, int x, int y)
-    {
-        List<(Direction, CellState)> results = [];
-
-        if (y > 0 && State.Beats(grid[x, y - 1].State)) results.Add((Direction.Up, grid[x, y - 1].State));
-        if (y < grid.GetLength(1) - 1 && State.Beats(grid[x, y + 1].State)) results.Add((Direction.Down, grid[x, y + 1].State));
-        if (x > 0 && State.Beats(grid[x - 1, y].State)) results.Add((Direction.Left, grid[x - 1, y].State));
-        if (x < grid.GetLength(0) - 1 && State.Beats(grid[x + 1, y].State)) results.Add((Direction.Right, grid[x + 1, y].State));
-
-        return results;
     }
 }
 

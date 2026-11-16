@@ -46,9 +46,7 @@ public class Grid
 
     private readonly Texture2D _texture;
 
-    private readonly Texture2D _pixel;
-
-    private static readonly Color GarbageFill = new(210, 210, 210);
+    private readonly PixelFont _damageFont;
 
     private GridPhase _currentPhase = GridPhase.Playing;
     private double _phaseTimer = 0;
@@ -68,7 +66,7 @@ public class Grid
     // decided by the scene's ICombatRule.
     public event Action<ClearStep> CellsCleared;
     public event Action<int> ChainEnded;
-    public event Action<CellState, int> RequestSendGarbage;
+    public event Action<int> RequestSendDamage;
 
     // Clear steps in the current resolution. 0 while no chain is running.
     private int _chain;
@@ -80,8 +78,7 @@ public class Grid
     public Grid(Texture2D texture, Rectangle viewport, GridMargins margins = default)
     {
         _texture = texture;
-        _pixel = new Texture2D(texture.GraphicsDevice, 1, 1);
-        _pixel.SetData([Color.White]);
+        _damageFont = new PixelFont(texture.GraphicsDevice);
 
         cells = new Cell[Width, Height];
         SetViewport(viewport, margins);
@@ -89,10 +86,10 @@ public class Grid
     }
 
     // Sends garbage of the given type to the opponents. Routing is up to GameScene.
-    public void SendGarbage(CellState type, int amount)
+    public void SendGarbage(int amount)
     {
         if (IsGameOver || amount <= 0) return;
-        RequestSendGarbage?.Invoke(type, amount);
+        RequestSendDamage?.Invoke(amount);
     }
 
     // Removes up to `amount` queued garbage cells before they drop, newest first.
@@ -187,7 +184,7 @@ public class Grid
     private static bool IsMatchable(Cell cell)
     {
         CellState state = cell.State;
-        return !cell.IsGarbage && state != CellState.Empty && state != CellState.Placeholder && state != CellState.Invisible;
+        return !cell.IsDamage && state != CellState.Empty && state != CellState.Placeholder && state != CellState.Invisible;
     }
 
     private bool MarkMatches(Cell[,] board)
@@ -264,7 +261,7 @@ public class Grid
             for (int y = 0; y < Height; y++)
             {
                 Cell cell = board[x, y];
-                if (!cell.IsGarbage || cell.IsClearing) continue;
+                if (!cell.IsDamage || cell.IsClearing) continue;
 
                 if (IsClearingOfType(board, x, y - 1, cell.State) ||
                     IsClearingOfType(board, x, y + 1, cell.State) ||
@@ -281,7 +278,11 @@ public class Grid
     {
         if (x < 0 || x >= Width || y < 0 || y >= Height) return false;
         Cell cell = board[x, y];
-        return cell.IsClearing && !cell.IsGarbage && cell.State == state;
+        if (!cell.IsClearing || cell.IsDamage) return false;
+
+        return state == CellState.Universal
+            ? cell.State is CellState.Symbol1 or CellState.Symbol2 or CellState.Symbol3
+            : cell.State == state;
     }
 
     public Cell[,] Clone() => CloneBoard(cells);
@@ -293,7 +294,7 @@ public class Grid
         {
             for (int y = 0; y < Height; y++)
             {
-                clone[x, y] = new Cell(board[x, y].State, board[x, y].IsGarbage);
+                clone[x, y] = new Cell(board[x, y].State, board[x, y].IsDamage, board[x, y].DamageTimer, board[x, y].DamageAmount);
             }
         }
         return clone;
@@ -316,19 +317,22 @@ public class Grid
         return true;
     }
 
-    public void QueueGarbage(CellState type, int count = 1)
+    public void QueueGarbage(int count = 1, int damageAmount = 1)
     {
+        QueueGarbage(CellState.Universal, count, damageAmount);
+    }
+
+    public void QueueGarbage(CellState type, int count = 1, int damageAmount = 1)
+    {
+        if (count <= 0 || damageAmount <= 0) return;
+
         for (int i = 0; i < count; i++)
-            _pendingGarbage.Add(new Cell(type, isGarbage: true));
+            _pendingGarbage.Add(new Cell(type, isDamage: true, damageTimer: 10 ,damageAmount: damageAmount));
     }
 
     public void QueueRandomGarbage(int count)
     {
-        for (int i = 0; i < count; i++)
-        {
-            var type = (CellState)Random.Shared.Next((int)CellState.Symbol1, (int)CellState.Symbol3 + 1);
-            QueueGarbage(type);
-        }
+        QueueGarbage(count);
     }
 
     private bool SpawnGarbageRow()
@@ -586,10 +590,10 @@ public class Grid
                 Cell cell = cells[x, y];
                 Vector2 origin = new(CellSize / 2, CellSize / 2);
                 Color tint = cell.IsClearing ? Color.Blue * 1.2f : Color.White;
-                if (cell.IsGarbage)
+                if (cell.IsDamage)
                 {
                     Rectangle dest = new(OffsetX + x * CellSize, OffsetY + y * CellSize, CellSize, CellSize);
-                    DrawGarbageCell(spriteBatch, dest, cell.SourceRect, cell.Background, 3, cell.IsClearing ? tint : GarbageFill);
+                    DrawDamageCell(spriteBatch, dest, cell, tint);
                     continue;
                 }
                 // Cell background
@@ -611,19 +615,23 @@ public class Grid
 
         for (int i = 0; i < count; i++)
         {
-            Cell cell = _pendingGarbage[i];
             Rectangle dest = new(OffsetX + i * iconSize, y, iconSize, iconSize);
-            DrawGarbageCell(spriteBatch, dest, cell.MiniSourceRect, cell.MiniBackground, 2, GarbageFill);
+            DrawDamageCell(spriteBatch, dest, _pendingGarbage[i], Color.White);
         }
     }
 
-    private void DrawGarbageCell(SpriteBatch spriteBatch, Rectangle dest, Rectangle symbol, Rectangle frame, int inset, Color fill)
+    private void DrawDamageCell(SpriteBatch spriteBatch, Rectangle dest, Cell cell, Color tint)
     {
-        Rectangle fillRect = dest;
-        fillRect.Inflate(-inset, -inset);
+        spriteBatch.Draw(_texture, dest, cell.Background, tint);
+        string timerText = Math.Max(0, (int)Math.Ceiling(cell.DamageTimer)).ToString();
+        string damageText = cell.DamageAmount > 0 ? cell.DamageAmount.ToString() : "0";
 
-        spriteBatch.Draw(_pixel, fillRect, fill);
-        spriteBatch.Draw(_texture, dest, symbol, Color.Black);
-        spriteBatch.Draw(_texture, dest, frame, Color.White);
+        float timerX = dest.Center.X - (timerText.Length * PixelFont.GlyphWidth * 2f) / 2f;
+        float timerY = dest.Y + 2;
+        _damageFont.DrawString(spriteBatch, timerText, new Vector2(timerX, timerY), Color.White, 2);
+
+        float damageX = dest.Center.X - damageText.Length * PixelFont.GlyphWidth * 1f / 2f;
+        float damageY = dest.Y + dest.Height - PixelFont.GlyphHeight - 3;
+        _damageFont.DrawString(spriteBatch, damageText, new Vector2(damageX, damageY), Color.White, 1);
     }
 }

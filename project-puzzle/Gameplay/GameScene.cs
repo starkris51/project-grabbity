@@ -30,10 +30,12 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
     private const int UpcomingPieceCount = 3;
     private const int PortraitSize = 240;
     private const int HealthBarHeight = 18;
+    private const int PlayerHealthTextScale = 2;
 
     private readonly ContentManager _content = content;
     private Texture2D tileset = null!;
     private Texture2D uiPixel = null!;
+    private PixelFont pixelFont = null!;
 
     private readonly List<BattleBoard> boards = [];
 
@@ -47,6 +49,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
         tileset = _content.Load<Texture2D>("wip-tileset");
         uiPixel = new Texture2D(tileset.GraphicsDevice, 1, 1);
         uiPixel.SetData([Color.White]);
+        pixelFont = new PixelFont(tileset.GraphicsDevice);
 
         CreateBoards();
     }
@@ -91,7 +94,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
             board.Grid.OnGameOver += () => Restart(board);
             board.Grid.RequestNewPiece += () => SpawnPiece(board);
-            board.Grid.RequestSendGarbage += (type, amount) => SendGarbage(board, type, amount);
+            board.Grid.RequestSendDamage += amount => SendGarbage(board, amount);
             board.Grid.CellsCleared += step => Combat.OnCellsCleared(board, step);
             board.Grid.ChainEnded += chain => Combat.OnChainEnded(board, chain);
 
@@ -119,12 +122,12 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
                 destroyedEffect: Enemy.TargetDestroyedEffect.None)
         ]);
 
-    private void SendGarbage(BattleBoard sender, CellState type, int amount)
+    private void SendGarbage(BattleBoard sender, int amount)
     {
         foreach (BattleBoard target in boards)
         {
             if (target == sender || target.Grid.IsGameOver) continue;
-            target.Grid.QueueGarbage(type, amount);
+            target.Grid.QueueGarbage(amount);
         }
     }
 
@@ -150,6 +153,7 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
     public void Unload()
     {
         uiPixel?.Dispose();
+        pixelFont?.Dispose();
         _content.Unload();
     }
 
@@ -223,9 +227,10 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
     private void DrawEnemyHud(SpriteBatch spriteBatch, BattleBoard board, Enemy enemy, int selectedTarget)
     {
-        int size = Math.Min(PortraitSize, board.Viewport.Width - 40);
+        int size = Math.Min(PortraitSize, Math.Max(0, screenWidth - 80));
+        int centerX = screenWidth / 2;
         Rectangle portraitBounds = new(
-            board.Viewport.Center.X - size / 2,
+            centerX - size / 2,
             board.Viewport.Y + 32,
             size,
             size);
@@ -233,9 +238,9 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
         spriteBatch.Draw(board.Portrait, portraitBounds, Color.White);
         DrawEnemyTargets(spriteBatch, enemy, portraitBounds, selectedTarget);
 
-        int healthWidth = Math.Min(PortraitSize, board.Viewport.Width - 40);
+        int healthWidth = Math.Min(PortraitSize, Math.Max(0, screenWidth - 80));
         Rectangle healthBounds = new(
-            board.Viewport.Center.X - healthWidth / 2,
+            centerX - healthWidth / 2,
             portraitBounds.Bottom + 10,
             healthWidth,
             HealthBarHeight);
@@ -273,9 +278,16 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
     {
         int width = board.Grid.Width * board.Grid.CellSize;
         int boardBottom = board.Grid.OffsetY + board.Grid.Height * board.Grid.CellSize;
-        int y = Math.Min(boardBottom + 12, screenHeight - HealthBarHeight - 8);
+        int labelHeight = PixelFont.GlyphHeight * PlayerHealthTextScale;
+        int y = Math.Min(boardBottom + 12, screenHeight - HealthBarHeight - labelHeight - 12);
         Rectangle bounds = new(board.Grid.OffsetX, y, width, HealthBarHeight);
         DrawHealthBar(spriteBatch, bounds, board.Combatant);
+        pixelFont.DrawString(
+            spriteBatch,
+            $"HP {board.Combatant.Health}/{board.Combatant.MaxHealth}",
+            new Vector2(bounds.X, bounds.Bottom + 4),
+            Color.White,
+            PlayerHealthTextScale);
     }
 
     private void DrawHealthBar(SpriteBatch spriteBatch, Rectangle bounds, ICombatant combatant)
