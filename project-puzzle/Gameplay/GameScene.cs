@@ -5,14 +5,17 @@ using Core;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace Gameplay;
 
 public sealed class BattleBoard
 {
+    public required Rectangle Viewport { get; init; }
     public required Grid Grid { get; init; }
     public required PieceManager PieceManager { get; init; }
     public required ICombatant Combatant { get; init; }
+    public Texture2D Portrait { get; init; } = null!;
     public BoardController Controller = null!;
 
 }
@@ -25,9 +28,12 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
     private static readonly GridMargins MultiBoardMargins = new(top: 450, bottom: 40, left: 60, right: 60);
 
     private const int UpcomingPieceCount = 3;
+    private const int PortraitSize = 240;
+    private const int HealthBarHeight = 18;
 
     private readonly ContentManager _content = content;
     private Texture2D tileset = null!;
+    private Texture2D uiPixel = null!;
 
     private readonly List<BattleBoard> boards = [];
 
@@ -39,6 +45,8 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
     public void Load()
     {
         tileset = _content.Load<Texture2D>("wip-tileset");
+        uiPixel = new Texture2D(tileset.GraphicsDevice, 1, 1);
+        uiPixel.SetData([Color.White]);
 
         CreateBoards();
     }
@@ -61,9 +69,13 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
                 : CreateTestEnemy();
             var board = new BattleBoard
             {
+                Viewport = item.viewport,
                 Grid = grid,
                 PieceManager = pieceManager,
-                Combatant = combatant
+                Combatant = combatant,
+                Portrait = combatant.FullBodyAsset is string asset
+                    ? _content.Load<Texture2D>(asset)
+                    : null
             };
             // The first board is the player; remaining boards are enemies.
             if (item.index > 0)
@@ -137,13 +149,14 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
 
     public void Unload()
     {
-        // Unload game assets here
+        uiPixel?.Dispose();
         _content.Unload();
     }
 
     public void Update(GameTime gameTime)
     {
         KeyboardInfo.Update();
+        UpdateTargetSelection();
 
         // // Temporary dev toggle for exercising the layout system before real UI/menu
         // // flow exists to pick a mode.
@@ -176,5 +189,108 @@ public class GameScene(ContentManager content, int screenWidth, int screenHeight
             board.Grid.Draw(spriteBatch);
             board.PieceManager.Draw(spriteBatch);
         }
+
+        for (int i = 0; i < boards.Count; i++)
+        {
+            BattleBoard board = boards[i];
+            if (i == 0)
+            {
+                DrawPlayerHealth(spriteBatch, board);
+            }
+            else if (board.Combatant is Enemy enemy && board.Portrait is not null)
+            {
+                int selectedTarget = boards[0].Combatant is PlayerCharacter player
+                    ? player.SelectedTarget
+                    : -1;
+                DrawEnemyHud(spriteBatch, board, enemy, selectedTarget);
+            }
+        }
+    }
+
+    private void UpdateTargetSelection()
+    {
+        if (!KeyboardInfo.WasKeyJustPressed(Keys.Tab) ||
+            boards.Count < 2 ||
+            boards[0].Combatant is not PlayerCharacter player ||
+            boards[1].Combatant is not Enemy enemy ||
+            enemy.Targets.Length == 0)
+        {
+            return;
+        }
+
+        player.SelectedTarget = (player.SelectedTarget + 1) % enemy.Targets.Length;
+    }
+
+    private void DrawEnemyHud(SpriteBatch spriteBatch, BattleBoard board, Enemy enemy, int selectedTarget)
+    {
+        int size = Math.Min(PortraitSize, board.Viewport.Width - 40);
+        Rectangle portraitBounds = new(
+            board.Viewport.Center.X - size / 2,
+            board.Viewport.Y + 32,
+            size,
+            size);
+
+        spriteBatch.Draw(board.Portrait, portraitBounds, Color.White);
+        DrawEnemyTargets(spriteBatch, enemy, portraitBounds, selectedTarget);
+
+        int healthWidth = Math.Min(PortraitSize, board.Viewport.Width - 40);
+        Rectangle healthBounds = new(
+            board.Viewport.Center.X - healthWidth / 2,
+            portraitBounds.Bottom + 10,
+            healthWidth,
+            HealthBarHeight);
+        DrawHealthBar(spriteBatch, healthBounds, enemy);
+    }
+
+    private void DrawEnemyTargets(SpriteBatch spriteBatch, Enemy enemy, Rectangle portraitBounds, int selectedTarget)
+    {
+        for (int i = 0; i < enemy.Targets.Length; i++)
+        {
+            Enemy.Target target = enemy.Targets[i];
+            float verticalPosition = target.Id switch
+            {
+                "head" => 0.24f,
+                "torso" => 0.58f,
+                _ => -1f
+            };
+            if (verticalPosition < 0) continue;
+
+            bool isSelected = i == selectedTarget;
+            int markerSize = isSelected ? 40 : 32;
+            Rectangle markerBounds = new(
+                portraitBounds.Center.X - markerSize / 2,
+                portraitBounds.Y + (int)(portraitBounds.Height * verticalPosition) - markerSize / 2,
+                markerSize,
+                markerSize);
+            Color tint = isSelected ? Color.White : Color.White * 0.55f;
+            Rectangle symbol = target.Id == "head" ? CellTexture.BackgroundBlock1 : CellTexture.BackgroundBlock1;
+
+            spriteBatch.Draw(tileset, markerBounds, symbol, tint);
+        }
+    }
+
+    private void DrawPlayerHealth(SpriteBatch spriteBatch, BattleBoard board)
+    {
+        int width = board.Grid.Width * board.Grid.CellSize;
+        int boardBottom = board.Grid.OffsetY + board.Grid.Height * board.Grid.CellSize;
+        int y = Math.Min(boardBottom + 12, screenHeight - HealthBarHeight - 8);
+        Rectangle bounds = new(board.Grid.OffsetX, y, width, HealthBarHeight);
+        DrawHealthBar(spriteBatch, bounds, board.Combatant);
+    }
+
+    private void DrawHealthBar(SpriteBatch spriteBatch, Rectangle bounds, ICombatant combatant)
+    {
+        const int border = 2;
+        Rectangle innerBounds = new(
+            bounds.X + border,
+            bounds.Y + border,
+            bounds.Width - border * 2,
+            bounds.Height - border * 2);
+        float healthFraction = Math.Clamp(combatant.Health / (float)combatant.MaxHealth, 0f, 1f);
+        Rectangle fillBounds = innerBounds;
+        fillBounds.Width = (int)(innerBounds.Width * healthFraction);
+
+        if (fillBounds.Width > 0)
+            spriteBatch.Draw(uiPixel, fillBounds, new Color(65, 190, 90));
     }
 }
